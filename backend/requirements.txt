@@ -1,0 +1,6 @@
+stim>=1.14
+pymatching>=2.1
+numpy>=1.24
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.0
