@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from qec import (
     make_lattice, run_shot, run_threshold, estimate,
     make_merged_geometry, run_merge_shot, run_phenomenological,
+    list_circuits, get_schedule,
 )
 
 app = FastAPI(title="QEC Lab API")
@@ -78,3 +79,22 @@ def surgery_endpoint(req: MergeRequest):
 @app.get("/api/phenomenological")
 def phenomenological_endpoint(shots: int = Query(300, ge=100, le=1000)):
     return run_phenomenological(shots=shots)
+
+
+# ── fault-tolerant gate scheduler ────────────────────────────────────────────
+
+@app.get("/api/scheduler/circuits")
+def scheduler_circuits():
+    return list_circuits()
+
+
+@app.get("/api/scheduler")
+def scheduler_endpoint(
+    circuit: str = Query("cnot"),
+    d: int = Query(3, ge=3, le=9),
+):
+    try:
+        return get_schedule(circuit, d)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))

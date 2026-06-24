@@ -433,6 +433,32 @@ input[type=range]{
       </div>
     </div>
 
+    <!-- FAULT-TOLERANT GATE SCHEDULER -->
+    <div class="panel">
+      <div class="ptitle">FT GATE SCHEDULER</div>
+      <div style="font-size:8px;color:var(--tx-d);margin-bottom:10px;line-height:1.65">
+        Logical gate → lattice surgery primitives (Horsman 2012). Each logical cycle = d QEC rounds.
+        Gantt is a schematic; resource counts are exact for serial ancilla reuse.
+      </div>
+      <div class="tog" id="sched-tog">
+        <button class="tb on-teal" data-circ="cnot">CNOT</button>
+        <button class="tb"         data-circ="t_gate">T GATE</button>
+        <button class="tb"         data-circ="bell">BELL</button>
+        <button class="tb"         data-circ="toffoli">TOFFOLI</button>
+      </div>
+      <div id="sched-title"  style="margin:9px 0 2px;font-family:var(--mono);font-size:11px;color:var(--teal)"></div>
+      <div id="sched-sub"    style="font-size:8px;color:var(--tx-d);margin-bottom:6px;line-height:1.5"></div>
+      <svg id="sched-svg" style="width:100%;display:block"></svg>
+      <!-- resource cards -->
+      <div class="metrics" id="sched-metrics" style="margin-top:10px;display:none">
+        <div class="mcard"><div class="mval" id="sm-t">—</div><div class="mlbl">T-GATES</div></div>
+        <div class="mcard"><div class="mval" id="sm-depth">—</div><div class="mlbl">LOG. DEPTH</div></div>
+        <div class="mcard"><div class="mval" id="sm-patches">—</div><div class="mlbl">PATCHES</div></div>
+        <div class="mcard"><div class="mval" id="sm-phys">—</div><div class="mlbl">PHYS. QUBITS</div></div>
+      </div>
+      <div id="sched-detail" style="margin-top:6px;font-size:8px;color:var(--tx-d);line-height:1.65;display:none"></div>
+    </div>
+
   </div><!-- /sidebar -->
 </div><!-- /main -->
 
@@ -1265,6 +1291,171 @@ async function fetchPhenomenological() {
 }
 
 // ================================================================
+// FAULT-TOLERANT GATE SCHEDULER
+// ================================================================
+const SCHED_CAT = {
+  clifford:  { fill: 'rgba(124,58,237,.55)',  stroke: '#7c3aed', text: '#ede8ff' },
+  merge:     { fill: 'rgba(0,245,228,.22)',   stroke: '#00f5e4', text: '#00f5e4' },
+  t_inject:  { fill: 'rgba(255,202,40,.28)',  stroke: '#ffca28', text: '#ffca28' },
+  t_distill: { fill: 'rgba(255,145,0,.28)',   stroke: '#ff9100', text: '#ff9100' },
+  measure:   { fill: 'rgba(255,23,68,.22)',   stroke: '#ff1744', text: '#ff6090' },
+  correct:   { fill: 'rgba(0,230,118,.15)',   stroke: '#00e676', text: '#00e676' },
+  prepare:   { fill: 'rgba(140,30,210,.22)',  stroke: '#c400e8', text: '#c400e8' },
+  idle:      { fill: 'rgba(255,255,255,.03)', stroke: 'rgba(255,255,255,.08)', text: 'rgba(255,255,255,.2)' },
+};
+
+let _schedData = null;
+
+function drawGantt(data) {
+  _schedData = data;
+  const el    = document.getElementById('sched-svg');
+  const TW    = el.clientWidth || 268;
+  const lanes = data.lanes;
+  const depth = data.depth;
+
+  const LANE_H  = 22, LANE_PAD = 2;
+  const marginL = 88, marginR = 6, marginT = 4, marginB = 18;
+  const W = TW - marginL - marginR;
+  const H = lanes.length * (LANE_H + LANE_PAD);
+  const TH = H + marginT + marginB;
+
+  const svg = d3.select('#sched-svg').attr('viewBox', `0 0 ${TW} ${TH}`);
+  svg.selectAll('*').remove();
+
+  const g = svg.append('g').attr('transform', `translate(${marginL},${marginT})`);
+
+  // X scale: time steps
+  const x = d3.scaleLinear().domain([0, depth]).range([0, W]);
+  // Y scale: lanes
+  const laneY = i => i * (LANE_H + LANE_PAD);
+
+  // Grid columns
+  g.append('g').selectAll('line').data(d3.range(0, depth + 1)).join('line')
+    .attr('x1', t => x(t)).attr('x2', t => x(t))
+    .attr('y1', 0).attr('y2', H)
+    .attr('stroke', 'rgba(140,30,210,.12)').attr('stroke-width', 0.5);
+
+  // Lane backgrounds
+  g.append('g').selectAll('rect').data(lanes).join('rect')
+    .attr('x', 0).attr('width', W)
+    .attr('y', (_, i) => laneY(i)).attr('height', LANE_H)
+    .attr('fill', 'rgba(5,0,18,.5)').attr('rx', 2);
+
+  // Lane labels (left side, outside g)
+  svg.append('g').selectAll('text').data(lanes).join('text')
+    .attr('x', marginL - 5)
+    .attr('y', (_, i) => marginT + laneY(i) + LANE_H / 2 + 1)
+    .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
+    .attr('font-size', '7.5px').attr('font-family', 'Space Mono, monospace')
+    .attr('fill', 'rgba(138,128,181,.75)')
+    .text(d => d);
+
+  // Operations
+  const laneIdx = {};
+  lanes.forEach((l, i) => laneIdx[l] = i);
+
+  const ops = g.append('g').selectAll('g').data(data.ops).join('g');
+
+  ops.append('rect')
+    .attr('x',      d => x(d.t) + 1)
+    .attr('width',  d => Math.max(1, x(d.t + d.dur) - x(d.t) - 2))
+    .attr('y',      d => laneY(laneIdx[d.lane]) + 1)
+    .attr('height', LANE_H - 2)
+    .attr('rx', 2)
+    .attr('fill',   d => (SCHED_CAT[d.cat] || SCHED_CAT.idle).fill)
+    .attr('stroke', d => (SCHED_CAT[d.cat] || SCHED_CAT.idle).stroke)
+    .attr('stroke-width', 0.8);
+
+  ops.append('text')
+    .attr('x',    d => x(d.t) + (x(d.t + d.dur) - x(d.t)) / 2)
+    .attr('y',    d => laneY(laneIdx[d.lane]) + LANE_H / 2 + 1)
+    .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+    .attr('font-size', '6.5px').attr('font-family', 'Space Mono, monospace')
+    .attr('fill', d => (SCHED_CAT[d.cat] || SCHED_CAT.idle).text)
+    .attr('pointer-events', 'none')
+    .text(d => {
+      const avail = x(d.t + d.dur) - x(d.t) - 4;
+      if (avail < 18) return '';
+      if (avail < 38) return d.label.slice(0, 4);
+      return d.label;
+    });
+
+  // X axis ticks
+  const axisG = svg.append('g').attr('transform', `translate(${marginL},${marginT + H + 3})`);
+  axisG.call(d3.axisBottom(x).ticks(Math.min(depth, 8)).tickFormat(t => `t${t}`))
+    .selectAll('text').attr('fill', 'rgba(80,30,120,.8)').attr('font-size', '7px')
+    .style('font-family', 'Space Mono');
+  axisG.selectAll('.domain,.tick line').attr('stroke', 'rgba(80,30,120,.3)');
+
+  // Legend (colour key, inline below axis)
+  const legendItems = [
+    { cat: 'merge',     label: 'merge' },
+    { cat: 'clifford',  label: 'Clifford' },
+    { cat: 't_inject',  label: 'T inject' },
+    { cat: 't_distill', label: 'T distill' },
+    { cat: 'measure',   label: 'measure' },
+    { cat: 'correct',   label: 'correct' },
+  ];
+  const lgY = marginT + H + marginB + 6;
+  const lgG = svg.append('g').attr('transform', `translate(${marginL},${lgY})`);
+  let lx = 0;
+  legendItems.forEach(({ cat, label }) => {
+    const col = SCHED_CAT[cat].stroke;
+    lgG.append('rect').attr('x', lx).attr('y', 0).attr('width', 8).attr('height', 7)
+      .attr('fill', SCHED_CAT[cat].fill).attr('stroke', col).attr('stroke-width', 0.8).attr('rx', 1);
+    lgG.append('text').attr('x', lx + 10).attr('y', 6)
+      .attr('font-size', '6px').attr('font-family', 'Space Mono').attr('fill', 'rgba(138,128,181,.7)')
+      .text(label);
+    lx += 10 + label.length * 4 + 8;
+  });
+}
+
+function updateSchedResources(data) {
+  const r = data.resources;
+  document.getElementById('sm-t').textContent      = r.t_count;
+  document.getElementById('sm-depth').textContent  = r.logical_depth;
+  document.getElementById('sm-patches').textContent = r.total_patches;
+  document.getElementById('sm-phys').textContent   = r.total_physical;
+
+  const dEl = document.getElementById('sched-detail');
+  const d   = S.d || 3;
+  dEl.innerHTML =
+    `<b style="color:var(--teal)">${r.phys_per_patch} qubits/patch</b> (2d²=${2*d*d}, rotated surface code) · ` +
+    `<b style="color:var(--gold)">${r.physical_cycles} QEC rounds</b> · ` +
+    `<b style="color:var(--mag)">${r.runtime_us} µs</b> (${r.cycle_time_note})<br>` +
+    r.references.map(ref => `<span style="color:rgba(80,30,120,.9)">${ref}</span>`).join(' · ');
+
+  document.getElementById('sched-metrics').style.display = '';
+  document.getElementById('sched-detail').style.display  = '';
+}
+
+async function loadSchedule(circuit) {
+  document.getElementById('sched-title').textContent = 'loading…';
+  document.getElementById('sched-sub').textContent   = '';
+  const d = S.d || 3;
+  try {
+    const r = await fetch(`http://localhost:8001/api/scheduler?circuit=${circuit}&d=${d}`);
+    const data = await r.json();
+    document.getElementById('sched-title').textContent = data.title;
+    document.getElementById('sched-sub').textContent   = data.subtitle;
+    drawGantt(data);
+    updateSchedResources(data);
+  } catch (e) {
+    document.getElementById('sched-title').textContent = 'error loading schedule';
+  }
+}
+
+function wireScheduler() {
+  document.querySelectorAll('[data-circ]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-circ]').forEach(b => b.classList.remove('on-teal'));
+      btn.classList.add('on-teal');
+      loadSchedule(btn.dataset.circ);
+    });
+  });
+}
+
+// ================================================================
 // BOOT
 // ================================================================
 async function boot() {
@@ -1284,6 +1475,9 @@ async function boot() {
     await loadSurgeryGeo(3);
     // Phenomenological button
     document.getElementById('pheno-btn').addEventListener('click', fetchPhenomenological);
+    // FT scheduler
+    wireScheduler();
+    loadSchedule('cnot');
   } catch {
     setStatus('err', 'backend offline — cd backend && uvicorn server:app');
   }
