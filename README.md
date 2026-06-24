@@ -7,7 +7,7 @@
 ![Stim](https://img.shields.io/badge/Stim-1.16-purple)
 ![PyMatching v2](https://img.shields.io/badge/PyMatching-v2-green)
 
-Interactive surface code quantum error correction simulator. Run real MWPM decoding on a rotated distance-d code, watch syndrome extraction animate in D3, plot the error threshold curve via Stim circuit-level noise, and see how RSA-2048 qubit estimates have dropped from 20M → 100K between 2019 and 2026.
+Interactive surface code quantum error correction simulator. Run real MWPM decoding on a rotated distance-d code, watch syndrome extraction animate in D3, simulate lattice surgery X-merges between two patches, compare circuit-level vs phenomenological noise thresholds, and see how RSA-2048 qubit estimates have dropped from 20M → 100K between 2019 and 2026.
 
 ---
 
@@ -19,6 +19,8 @@ Interactive surface code quantum error correction simulator. Run real MWPM decod
 | **Shot animation** | Inject depolarizing errors → measure syndromes → MWPM decode → display correction → show logical outcome |
 | **Error threshold curve** | Stim circuit-level noise + PyMatching v2 across d = 3, 5, 7 at 14 physical error rates; threshold emerges near p ~ 1% |
 | **RSA-2048 resource estimator** | Physical qubit count as a function of p and n\_logical; side-by-side published benchmarks (Gidney 2019 / 2025 / 2026) |
+| **Lattice surgery — X-merge** | Two d×d patches joined at a rough (X-type) boundary; animated merge/syndrome/split phases; measures joint logical X_L⊗X_R parity; verified correct at p=0 for d=3,5. CNOT circuit diagram included (3-patch: ZZ-merge + XX-merge + ancilla readout) |
+| **Phenomenological noise** | Stim `before_round_data_depolarization + before_measure_flip_probability = p`; user-triggered sweep overlays dashed threshold curves showing the ~0.7% phenomenological threshold vs ~1% circuit-level |
 
 ---
 
@@ -99,6 +101,9 @@ file:///path/to/qec-lab/frontend/index.html
 | `POST` | `/api/shot` | Single shot: `{d, p, seed?}` → errors, syndromes, corrections, logical outcome |
 | `GET` | `/api/threshold?shots=600` | Threshold sweep across d=3,5,7 (takes ~90s) |
 | `GET` | `/api/resource?p=0.001&n_logical=3000` | RSA-2048 qubit estimate |
+| `GET` | `/api/surgery/geometry?d=3` | Two-patch merged geometry for D3 rendering |
+| `POST` | `/api/surgery` | X-merge shot: `{d, p, seed?}` → per-phase state for animation |
+| `GET` | `/api/phenomenological?shots=300` | Phenomenological noise threshold sweep (~40s) |
 
 ---
 
