@@ -140,13 +140,13 @@ body{
 
 /* distance selector */
 .d-btns{display:flex;gap:6px}
-.d-btn{
+.d-btn,.s-btn{
   flex:1;padding:8px 0;font-family:var(--mono);font-size:11px;
   background:transparent;border:1px solid var(--gb);color:var(--tx);
   border-radius:6px;cursor:pointer;transition:background .15s,color .15s,border-color .15s;
 }
-.d-btn:hover{background:rgba(59,130,246,.1);border-color:var(--blue)}
-.d-btn.active{
+.d-btn:hover,.s-btn:hover{background:rgba(59,130,246,.1);border-color:var(--blue)}
+.d-btn.active,.s-btn.active{
   background:rgba(59,130,246,.18);border-color:var(--blue);
   color:var(--blue);font-weight:700;
   box-shadow:0 0 10px rgba(59,130,246,.2);
@@ -220,6 +220,11 @@ input[type=range]{
 .ref-label{color:var(--tx-d);font-family:var(--mono)}
 .ref-val{font-family:var(--mono);color:var(--cyan)}
 
+/* surgery svg */
+#surgery-svg{display:block;width:100%;border-radius:6px;border:1px solid var(--gb);background:rgba(0,0,0,.2)}
+/* pheno chart */
+#pheno-svg{height:118px;width:100%}
+
 /* animations */
 @keyframes node-pop{
   0%{transform:scale(1)}35%{transform:scale(1.55)}100%{transform:scale(1)}
@@ -241,7 +246,7 @@ input[type=range]{
 
 <!-- HEADER -->
 <div id="hdr">
-  <div id="logo">QEC LAB<span>SURFACE CODE SIMULATOR · V1</span></div>
+  <div id="logo">QEC LAB<span>SURFACE CODE SIMULATOR · V2</span></div>
   <div class="chips">
     <div class="chip">
       <div class="chip-v" id="h-d">3</div>
@@ -383,6 +388,48 @@ input[type=range]{
         <code style="color:var(--cyan)">after_clifford_depolarization=p</code> throughout the full
         syndrome extraction circuit including ancilla prep/measurement.
         This is the standard model in surface code literature (threshold ~ 0.5–1%).
+      </div>
+    </div>
+
+    <!-- LATTICE SURGERY -->
+    <div class="panel">
+      <div class="ptitle">LATTICE SURGERY — X-MERGE</div>
+      <div style="font-size:8px;color:var(--tx-d);margin-bottom:8px;line-height:1.65">
+        Two patches joined along rough (X-type) boundary → measures joint logical
+        <b style="color:var(--blue)">X<sub>L</sub>⊗X<sub>R</sub></b> parity.
+        At p=0 always +1. CNOT needs 3 patches: ZZ-merge(A,anc) + XX-merge(anc,B) + measure anc.
+      </div>
+      <div class="d-btns">
+        <button class="s-btn active" data-sd="3">d=3</button>
+        <button class="s-btn" data-sd="5">d=5</button>
+      </div>
+      <div class="ctrl-lbl">
+        <span>MERGE ERROR RATE p</span>
+        <span class="ctrl-v"><span id="sp-val">1.0</span>%</span>
+      </div>
+      <input type="range" id="sp-slider" min="1" max="50" value="10" step="1">
+      <div class="range-ends"><span>0.1%</span><span>5.0%</span></div>
+      <svg id="surgery-svg"></svg>
+      <div class="btn-row"><button class="btn" id="surgery-btn">▶ RUN MERGE</button></div>
+      <div class="shot-note idle" id="surgery-verdict">Run merge to see joint X parity.</div>
+      <div id="surgery-phase" style="font-family:var(--mono);font-size:8px;color:var(--cyan);text-align:center;margin-top:4px;min-height:12px;letter-spacing:.08em"></div>
+    </div>
+
+    <!-- PHENOMENOLOGICAL NOISE -->
+    <div class="panel">
+      <div class="ptitle">PHENOMENOLOGICAL NOISE</div>
+      <div style="font-size:8px;color:var(--tx-d);margin-bottom:8px;line-height:1.65">
+        Adds syndrome <b style="color:var(--blue)">measurement errors</b> (p<sub>meas</sub>=p)
+        on top of data errors — the standard multi-round noise model.
+        Threshold is lower than circuit-level (curves cross ~0.7%).
+      </div>
+      <div id="pheno-loading" style="font-size:9px;color:var(--tx-d);font-family:var(--mono);text-align:center;padding:10px 0">
+        9 × 3 = 27 data points. Click to run.
+      </div>
+      <svg id="pheno-svg" style="display:none"></svg>
+      <div class="btn-row"><button class="btn" id="pheno-btn">▶ RUN PHENOMENOLOGICAL (~40 s)</button></div>
+      <div style="margin-top:6px;font-size:8px;color:var(--tx-d);line-height:1.65">
+        Stim <code style="color:var(--cyan)">before_round_data_depolarization + before_measure_flip_probability = p</code> · 300 shots
       </div>
     </div>
 
@@ -929,6 +976,295 @@ async function fetchThreshold() {
 }
 
 // ================================================================
+// LATTICE SURGERY
+// ================================================================
+const SS = { d: 3, p: 0.01, geo: null, running: false };
+const SM2 = 18;
+
+function sCELL(d) {
+  const w = document.getElementById('surgery-svg').clientWidth || 270;
+  return Math.min(32, Math.floor((w - SM2 * 2) / (2 * d + 2)));
+}
+
+function surgPoly(stab, qmap, SCELL, d) {
+  const pts = stab.qubits.map(id => qmap[id] || [0, 0]);
+  if (stab.weight === 4) {
+    pts.sort((a, b) => a[1] !== b[1] ? a[1] - b[1] : a[0] - b[0]);
+    return [pts[0], pts[1], pts[3], pts[2]];
+  }
+  // weight-2 boundary — add virtual apex
+  const ext = SCELL * 0.55;
+  const cx = (pts[0][0] + pts[1][0]) / 2;
+  const cy = (pts[0][1] + pts[1][1]) / 2;
+  const sx = SM2 + stab.col * SCELL;
+  const sy = SM2 + stab.row * SCELL;
+  let apex;
+  if      (stab.row < 0)       apex = [cx, sy - ext];
+  else if (stab.row > d - 1)   apex = [cx, sy + ext];
+  else if (stab.col < 0)       apex = [sx - ext, cy];
+  else                          apex = [sx + ext, cy];
+  pts.sort((a, b) => a[0] - b[0]);
+  return [...pts, apex];
+}
+
+function drawSurgery(geo, opts = {}) {
+  const { showSeam = false, synSet = new Set(), corrSet = new Set(), errSet = new Set() } = opts;
+  const d = geo.d;
+  const SCELL = sCELL(d);
+  const svgH = SM2 * 2 + (d - 1) * SCELL + Math.ceil(SCELL * 0.72);
+
+  const el = document.getElementById('surgery-svg');
+  el.setAttribute('height', svgH);
+
+  const s = d3.select('#surgery-svg');
+  s.selectAll('*').remove();
+
+  // qubit position map: id -> [x, y]
+  const qmap = {};
+  for (const q of geo.data)
+    qmap[q.id] = [SM2 + q.col * SCELL, SM2 + q.row * SCELL];
+
+  const stabs = [...geo.stabs_L, ...geo.stabs_R];
+  if (showSeam) stabs.push(...geo.seam_stabs);
+
+  // stabilizer faces
+  for (const st of stabs) {
+    const poly = surgPoly(st, qmap, SCELL, d);
+    const isSeam = st.seam, isSyn = synSet.has(st.id), xc = st.type === 'X';
+    let fill = xc ? 'rgba(59,130,246,0.16)' : 'rgba(251,146,60,0.16)';
+    let stroke = xc ? 'rgba(96,165,250,0.38)' : 'rgba(251,146,60,0.38)';
+    let sw = 1;
+    if (isSyn)     { fill = 'rgba(251,191,36,0.52)'; stroke = '#fbbf24'; sw = 2; }
+    else if (isSeam) { fill = xc ? 'rgba(59,130,246,0.44)' : 'rgba(251,146,60,0.44)';
+                       stroke = xc ? '#60a5fa' : '#fb923c'; sw = 1.8; }
+
+    s.append('polygon')
+      .attr('points', poly.map(p => p.join(',')).join(' '))
+      .attr('fill', fill).attr('stroke', stroke).attr('stroke-width', sw)
+      .attr('stroke-linejoin', 'round');
+
+    const lx = SM2 + st.col * SCELL, ly = SM2 + st.row * SCELL;
+    s.append('text').attr('x', lx).attr('y', ly + 3.5)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', 'Space Mono,monospace')
+      .attr('font-size', Math.max(5, Math.min(9, SCELL * 0.31)))
+      .attr('fill', xc ? 'rgba(96,165,250,0.48)' : 'rgba(251,146,60,0.48)')
+      .attr('pointer-events', 'none')
+      .text(st.type + (st.weight === 4 ? '₄' : '₂'));
+  }
+
+  // patch labels
+  for (const [lbl, col] of [['L', (d - 1) / 2], ['R', d + 1 + (d - 1) / 2]]) {
+    s.append('text')
+      .attr('x', SM2 + col * SCELL).attr('y', svgH - 2)
+      .attr('text-anchor', 'middle').attr('font-family', 'Space Mono,monospace')
+      .attr('font-size', 7).attr('fill', 'rgba(96,165,250,0.5)')
+      .text('PATCH ' + lbl);
+  }
+
+  // seam gap label
+  if (!showSeam) {
+    s.append('text')
+      .attr('x', SM2 + d * SCELL).attr('y', SM2 + ((d - 1) / 2) * SCELL + 4)
+      .attr('text-anchor', 'middle').attr('font-family', 'Space Mono,monospace')
+      .attr('font-size', 7).attr('fill', 'rgba(148,163,184,0.3)')
+      .text('·');
+  }
+
+  // data qubits
+  const r0 = Math.max(5, Math.round(SCELL * 0.26));
+  for (const q of geo.data) {
+    const [x, y] = qmap[q.id];
+    const hasErr = errSet.has(q.id), hasCorr = corrSet.has(q.id);
+    s.append('circle')
+      .attr('cx', x).attr('cy', y).attr('r', r0)
+      .attr('fill', hasErr ? 'rgba(239,68,68,0.88)' : hasCorr ? 'rgba(167,139,250,0.82)' : '#1e3a5f')
+      .attr('stroke', hasErr ? '#ff5555' : hasCorr ? '#a78bfa' : 'var(--slate)')
+      .attr('stroke-width', 1.2);
+  }
+}
+
+function setSurgPhase(txt) {
+  document.getElementById('surgery-phase').textContent = txt;
+}
+
+async function loadSurgeryGeo(d) {
+  try {
+    const geo = await fetch(`${API}/api/surgery/geometry?d=${d}`).then(r => r.json());
+    SS.geo = geo;
+    drawSurgery(geo, { showSeam: false });
+  } catch {}
+}
+
+async function runMerge() {
+  if (SS.running || !SS.geo) return;
+  SS.running = true;
+  document.getElementById('surgery-btn').disabled = true;
+  const verd = document.getElementById('surgery-verdict');
+  verd.className = 'shot-note idle'; verd.textContent = 'Running…';
+
+  try {
+    const res = await fetch(`${API}/api/surgery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ d: SS.d, p: SS.p }),
+    }).then(r => r.json());
+
+    const geo = SS.geo;
+    const errSet  = new Set(res.errors_z);
+    const synSet  = new Set(Object.keys(res.syndromes));
+    const corrSet = new Set(res.correction_z);
+
+    setSurgPhase('MERGING — SEAM STABS ACTIVATED');
+    drawSurgery(geo, { showSeam: true });
+    await wait(600);
+
+    setSurgPhase('Z ERRORS INJECTED');
+    drawSurgery(geo, { showSeam: true, errSet });
+    await wait(600);
+
+    setSurgPhase('X-TYPE SYNDROMES');
+    drawSurgery(geo, { showSeam: true, errSet, synSet });
+    await wait(700);
+
+    setSurgPhase('MWPM CORRECTION');
+    drawSurgery(geo, { showSeam: true, errSet, synSet, corrSet });
+    await wait(500);
+
+    setSurgPhase('SPLIT');
+    drawSurgery(geo, { showSeam: false });
+
+    if (res.joint_preserved) {
+      verd.textContent = '✓  X_L ⊗ X_R = +1  — joint parity preserved';
+      verd.className = 'shot-note ok';
+    } else {
+      verd.textContent = '✗  X_L ⊗ X_R = −1  — logical error';
+      verd.className = 'shot-note fail';
+    }
+    await wait(300);
+    setSurgPhase('');
+  } catch {
+    verd.textContent = 'merge failed';
+  } finally {
+    SS.running = false;
+    document.getElementById('surgery-btn').disabled = false;
+  }
+}
+
+function wireSurgery() {
+  document.getElementById('sp-slider').addEventListener('input', function () {
+    const pct = (+this.value / 10).toFixed(1);
+    document.getElementById('sp-val').textContent = pct;
+    SS.p = +this.value / 1000;
+  });
+  document.getElementById('sp-val').textContent = '1.0';
+  SS.p = 0.01;
+
+  document.querySelectorAll('[data-sd]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (SS.running) return;
+      SS.d = +btn.dataset.sd;
+      document.querySelectorAll('[data-sd]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      await loadSurgeryGeo(SS.d);
+    });
+  });
+
+  document.getElementById('surgery-btn').addEventListener('click', runMerge);
+}
+
+// ================================================================
+// PHENOMENOLOGICAL NOISE
+// ================================================================
+function drawPhenomenological(data) {
+  const el = document.getElementById('pheno-svg');
+  el.style.display = 'block';
+  document.getElementById('pheno-loading').style.display = 'none';
+
+  const W0 = el.clientWidth || 270, H0 = 118;
+  const mg = { t: 10, r: 8, b: 28, l: 34 };
+  const W = W0 - mg.l - mg.r, H = H0 - mg.t - mg.b;
+
+  const sv = d3.select('#pheno-svg');
+  sv.selectAll('*').remove();
+  const g = sv.append('g').attr('transform', `translate(${mg.l},${mg.t})`);
+
+  const pVals = [...new Set(data.map(d => d.p))].sort((a, b) => a - b);
+  const maxPL = Math.max(...data.map(d => d.logical_error_rate), 0.5);
+  const x = d3.scaleLog().domain([Math.min(...pVals), Math.max(...pVals)]).range([0, W]);
+  const y = d3.scaleLinear().domain([0, maxPL]).range([H, 0]);
+  const DCOL = { '3': '#60a5fa', '5': '#34d399', '7': '#f472b6' };
+
+  g.append('line').attr('x1',0).attr('x2',W).attr('y1',H).attr('y2',H)
+    .attr('stroke','rgba(30,80,140,.35)').attr('stroke-width',.7);
+  g.append('line').attr('x1',0).attr('x2',0).attr('y1',0).attr('y2',H)
+    .attr('stroke','rgba(30,80,140,.35)').attr('stroke-width',.7);
+
+  // threshold guide
+  const thx = x(0.007);
+  if (thx >= 0 && thx <= W) {
+    g.append('line').attr('x1',thx).attr('x2',thx).attr('y1',0).attr('y2',H)
+      .attr('stroke','rgba(251,191,36,0.35)').attr('stroke-width',1).attr('stroke-dasharray','3,3');
+    g.append('text').attr('x',thx+3).attr('y',8)
+      .attr('fill','rgba(251,191,36,0.55)').attr('font-size',7)
+      .attr('font-family','Space Mono,monospace').text('~0.7%');
+  }
+
+  g.append('g').attr('transform',`translate(0,${H})`).call(
+    d3.axisBottom(x).tickValues([0.001,0.005,0.01,0.04])
+      .tickFormat(v => (v*100).toFixed(1)+'%')
+  ).call(ax => {
+    ax.select('.domain').attr('stroke','rgba(30,80,140,.5)');
+    ax.selectAll('.tick line').attr('stroke','rgba(30,80,140,.5)');
+    ax.selectAll('.tick text').attr('fill','var(--tx-d)').attr('font-size',7).attr('font-family','Space Mono,monospace');
+  });
+
+  g.append('g').call(
+    d3.axisLeft(y).ticks(4).tickFormat(v => v===0?'0':(v*100).toFixed(0)+'%')
+  ).call(ax => {
+    ax.select('.domain').attr('stroke','rgba(30,80,140,.5)');
+    ax.selectAll('.tick line').attr('stroke','rgba(30,80,140,.5)');
+    ax.selectAll('.tick text').attr('fill','var(--tx-d)').attr('font-size',7).attr('font-family','Space Mono,monospace');
+  });
+
+  [3, 5, 7].forEach(d => {
+    const pts = data.filter(r => r.d === d).sort((a, b) => a.p - b.p);
+    if (!pts.length) return;
+    const line = d3.line().x(r => x(r.p)).y(r => y(r.logical_error_rate)).curve(d3.curveMonotoneX);
+    g.append('path').datum(pts)
+      .attr('fill','none').attr('stroke', DCOL[String(d)]).attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', '5,3')
+      .attr('d', line);
+    g.selectAll(null).data(pts).enter().append('circle')
+      .attr('cx', r => x(r.p)).attr('cy', r => y(r.logical_error_rate))
+      .attr('r', 2.5).attr('fill', DCOL[String(d)]);
+  });
+
+  // legend
+  [3, 5, 7].forEach((d, i) => {
+    g.append('line').attr('x1',W-42).attr('x2',W-32).attr('y1',i*13+1).attr('y2',i*13+1)
+      .attr('stroke', DCOL[String(d)]).attr('stroke-width', 2).attr('stroke-dasharray','5,3');
+    g.append('text').attr('x',W-28).attr('y',i*13+4)
+      .attr('fill', DCOL[String(d)]).attr('font-size',8).attr('font-family','Space Mono,monospace').text('d='+d);
+  });
+}
+
+async function fetchPhenomenological() {
+  const btn = document.getElementById('pheno-btn');
+  btn.disabled = true; btn.textContent = 'running…';
+  document.getElementById('pheno-loading').textContent = 'sweeping 9×3=27 points…';
+  document.getElementById('pheno-loading').style.display = 'block';
+  try {
+    const data = await fetch(`${API}/api/phenomenological?shots=300`).then(r => r.json());
+    drawPhenomenological(data);
+  } catch {
+    document.getElementById('pheno-loading').textContent = 'failed — backend offline';
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ RUN PHENOMENOLOGICAL (~40 s)';
+  }
+}
+
+// ================================================================
 // BOOT
 // ================================================================
 async function boot() {
@@ -943,6 +1279,11 @@ async function boot() {
     await updateResource();
     // Threshold is slow — fetch in background
     fetchThreshold();
+    // Surgery geometry — load after lattice
+    wireSurgery();
+    await loadSurgeryGeo(3);
+    // Phenomenological button
+    document.getElementById('pheno-btn').addEventListener('click', fetchPhenomenological);
   } catch {
     setStatus('err', 'backend offline — cd backend && uvicorn server:app');
   }

@@ -191,3 +191,51 @@ def run_threshold(shots: int = 600, d_values: list | None = None) -> list:
             })
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Phenomenological noise threshold (data errors + measurement errors via Stim)
+# ---------------------------------------------------------------------------
+
+_PHENO_P_VALUES = [
+    0.001, 0.003, 0.005, 0.008, 0.011, 0.015, 0.020, 0.030, 0.040,
+]
+
+
+def run_phenomenological(shots: int = 300, d_values: list | None = None) -> list:
+    """
+    Threshold sweep with phenomenological noise.
+
+    Both before_round_data_depolarization and before_measure_flip_probability
+    are set to p (standard phenomenological model: data errors + measurement errors).
+
+    Returns list of {d, p, logical_error_rate, noise_model}.
+    """
+    if d_values is None:
+        d_values = _THRESHOLD_D_VALUES
+
+    results = []
+    for d in d_values:
+        for p in _PHENO_P_VALUES:
+            circuit = stim.Circuit.generated(
+                "surface_code:rotated_memory_z",
+                distance=d,
+                rounds=d,
+                before_round_data_depolarization=p,
+                before_measure_flip_probability=p,
+            )
+            dem     = circuit.detector_error_model(decompose_errors=True)
+            matcher = pymatching.Matching.from_detector_error_model(dem)
+            sampler = circuit.compile_detector_sampler()
+            data    = sampler.sample(shots, append_observables=True)
+            n_det   = circuit.num_detectors
+            preds   = matcher.decode_batch(data[:, :n_det])
+            n_errors = int(np.sum(preds != data[:, n_det:]))
+            results.append({
+                "d":                  d,
+                "p":                  p,
+                "logical_error_rate": n_errors / shots,
+                "noise_model":        "phenomenological",
+            })
+
+    return results
