@@ -6,6 +6,7 @@ from qec import (
     make_lattice, run_shot, run_threshold, estimate,
     make_merged_geometry, run_merge_shot, run_phenomenological,
     list_circuits, get_schedule,
+    run_register,
 )
 
 app = FastAPI(title="QEC Lab API")
@@ -98,3 +99,16 @@ def scheduler_endpoint(
     except ValueError as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── logical qubit register ────────────────────────────────────────────────────
+
+@app.get("/api/register")
+def register_endpoint(
+    n: int = Query(2, ge=1, le=5),
+    m: int = Query(2, ge=1, le=5),
+    d: int = Query(3, ge=3, le=9),
+    p: float = Query(0.01, ge=0.0, le=0.5),
+    seed: int | None = Query(None),
+):
+    return run_register(n, m, d, p, seed)

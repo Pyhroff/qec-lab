@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QEC Lab — Surface Code Simulator</title>
+<title>Quantum OS — Fault-Tolerant QC Simulator</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -28,6 +28,9 @@
   --tx-d:   #243c52;
   --ui:     'Inter',system-ui,sans-serif;
   --mono:   'Space Mono','Courier New',monospace;
+  --teal:   #00f5e4;
+  --gold:   #ffca28;
+  --mag:    #c400e8;
 }
 
 /* ── reset / base ────────────────────────────────────────────────────────── */
@@ -239,6 +242,28 @@ input[type=range]{
 @keyframes pulse-ring{
   0%{stroke-opacity:.7;r:0}100%{stroke-opacity:0;r:18}
 }
+
+/* ── scheduler: toggle buttons & metric cards ───────────────────────────── */
+.tog{display:flex;gap:4px;margin-bottom:8px}
+.tb{flex:1;padding:7px 0;font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  background:transparent;border:1px solid var(--gb);color:var(--tx);
+  border-radius:6px;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+.tb:hover{background:rgba(0,245,228,.1);border-color:var(--teal)}
+.on-teal{background:rgba(0,245,228,.15);border-color:var(--teal);color:var(--teal);font-weight:700}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.mcard{background:rgba(0,0,0,.3);border:1px solid var(--gb);border-radius:7px;padding:7px 8px}
+.mval{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--blue);line-height:1}
+.mlbl{font-size:7px;letter-spacing:.12em;color:var(--tx-d);margin-top:3px}
+
+/* ── logical qubit register ─────────────────────────────────────────────── */
+.nm-row{display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.nm-lbl{font-size:8px;letter-spacing:.14em;color:var(--tx-d);min-width:14px}
+.nm-btns{display:flex;gap:4px}
+.nm-btn{width:28px;height:24px;font-family:var(--mono);font-size:10px;
+  background:transparent;border:1px solid var(--gb);color:var(--tx);
+  border-radius:5px;cursor:pointer;transition:background .12s,border-color .12s}
+.nm-btn:hover{background:rgba(59,130,246,.1);border-color:var(--blue)}
+.nm-btn.active{background:rgba(59,130,246,.18);border-color:var(--blue);color:var(--blue);font-weight:700}
 </style>
 </head>
 
@@ -246,7 +271,7 @@ input[type=range]{
 
 <!-- HEADER -->
 <div id="hdr">
-  <div id="logo">QEC LAB<span>SURFACE CODE SIMULATOR · V2</span></div>
+  <div id="logo">QUANTUM OS<span>FAULT-TOLERANT QC SIMULATOR · V3</span></div>
   <div class="chips">
     <div class="chip">
       <div class="chip-v" id="h-d">3</div>
@@ -457,6 +482,47 @@ input[type=range]{
         <div class="mcard"><div class="mval" id="sm-phys">—</div><div class="mlbl">PHYS. QUBITS</div></div>
       </div>
       <div id="sched-detail" style="margin-top:6px;font-size:8px;color:var(--tx-d);line-height:1.65;display:none"></div>
+    </div>
+
+    <!-- LOGICAL QUBIT REGISTER -->
+    <div class="panel">
+      <div class="ptitle">LOGICAL QUBIT REGISTER</div>
+      <div style="font-size:8px;color:var(--tx-d);margin-bottom:10px;line-height:1.65">
+        N×M grid of logical surface code patches, each simulated independently
+        with code-capacity noise. <b style="color:var(--green)">Green</b> = corrected ·
+        <b style="color:var(--red)">Red</b> = logical error.
+      </div>
+      <div class="nm-row">
+        <span class="nm-lbl">N</span>
+        <div class="nm-btns">
+          <button class="nm-btn"        data-n="1">1</button>
+          <button class="nm-btn active" data-n="2">2</button>
+          <button class="nm-btn"        data-n="3">3</button>
+          <button class="nm-btn"        data-n="4">4</button>
+        </div>
+        <span class="nm-lbl" style="margin-left:8px">M</span>
+        <div class="nm-btns">
+          <button class="nm-btn"        data-m="1">1</button>
+          <button class="nm-btn active" data-m="2">2</button>
+          <button class="nm-btn"        data-m="3">3</button>
+          <button class="nm-btn"        data-m="4">4</button>
+        </div>
+      </div>
+      <div class="ctrl-lbl">
+        <span>PHYSICAL ERROR RATE</span>
+        <span class="ctrl-v"><span id="reg-p-val">1.0</span>%</span>
+      </div>
+      <input type="range" id="reg-p-slider" min="1" max="50" value="10" step="1">
+      <div class="range-ends"><span>0.1%</span><span>5.0%</span></div>
+      <div class="btn-row"><button class="btn" id="reg-btn">▶ RUN REGISTER</button></div>
+      <svg id="reg-svg" style="width:100%;display:none"></svg>
+      <div class="metrics" id="reg-metrics" style="margin-top:8px;display:none">
+        <div class="mcard"><div class="mval" id="rm-patches">—</div><div class="mlbl">PATCHES</div></div>
+        <div class="mcard"><div class="mval" id="rm-phys">—</div><div class="mlbl">PHYS. QUBITS</div></div>
+        <div class="mcard"><div class="mval" id="rm-errs">—</div><div class="mlbl">LOG. ERRORS</div></div>
+        <div class="mcard"><div class="mval" id="rm-rate">—</div><div class="mlbl">ERR. RATE</div></div>
+      </div>
+      <div id="reg-verdict" class="shot-note idle" style="display:none;margin-top:6px"></div>
     </div>
 
   </div><!-- /sidebar -->
@@ -1456,6 +1522,128 @@ function wireScheduler() {
 }
 
 // ================================================================
+// LOGICAL QUBIT REGISTER
+// ================================================================
+const RG = { n: 2, m: 2, p: 0.01, running: false };
+
+function drawRegister(data) {
+  const el = document.getElementById('reg-svg');
+  el.style.display = 'block';
+
+  const PAD = 6, GAP = 6;
+  const TW = el.clientWidth || 268;
+  const cols = data.m, rows = data.n;
+  const cellW = (TW - PAD * 2 - GAP * (cols - 1)) / cols;
+  const cellH = Math.max(36, Math.min(54, cellW * 0.6));
+  const TH = PAD * 2 + rows * cellH + GAP * (rows - 1);
+
+  const sv = d3.select('#reg-svg')
+    .attr('viewBox', `0 0 ${TW} ${TH}`)
+    .attr('height', TH);
+  sv.selectAll('*').remove();
+
+  data.patches.forEach(patch => {
+    const x = PAD + patch.col * (cellW + GAP);
+    const y = PAD + patch.row * (cellH + GAP);
+    const hasErr = patch.logical_error;
+    const fill   = hasErr ? 'rgba(239,68,68,0.16)' : 'rgba(74,222,128,0.09)';
+    const stroke = hasErr ? '#ef4444' : '#4ade80';
+    const tc     = hasErr ? '#ff8080' : '#4ade80';
+    const ts     = hasErr ? 'rgba(255,128,128,0.6)' : 'rgba(74,222,128,0.5)';
+    const errLabel = patch.logical_x_error && patch.logical_z_error ? 'X+Z ERR'
+                   : patch.logical_x_error ? 'X ERR' : patch.logical_z_error ? 'Z ERR' : 'OK';
+    const g = sv.append('g');
+    if (hasErr) {
+      g.append('rect')
+        .attr('x', x - 2).attr('y', y - 2)
+        .attr('width', cellW + 4).attr('height', cellH + 4)
+        .attr('rx', 9).attr('fill', 'none')
+        .attr('stroke', 'rgba(239,68,68,0.3)').attr('stroke-width', 3);
+    }
+    g.append('rect')
+      .attr('x', x).attr('y', y)
+      .attr('width', cellW).attr('height', cellH)
+      .attr('rx', 7).attr('fill', fill)
+      .attr('stroke', stroke).attr('stroke-width', 1.4);
+    g.append('text')
+      .attr('x', x + cellW / 2).attr('y', y + cellH / 2 - 5)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', 'Space Mono,monospace').attr('font-size', 9)
+      .attr('fill', tc)
+      .text(`Q[${patch.row},${patch.col}]`);
+    g.append('text')
+      .attr('x', x + cellW / 2).attr('y', y + cellH / 2 + 9)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', 'Space Mono,monospace').attr('font-size', 7)
+      .attr('fill', ts)
+      .text(errLabel);
+  });
+}
+
+function updateRegMetrics(data) {
+  document.getElementById('rm-patches').textContent = data.total_patches;
+  document.getElementById('rm-phys').textContent    = fmt(data.total_physical);
+  const errEl = document.getElementById('rm-errs');
+  errEl.textContent  = data.logical_errors;
+  errEl.style.color  = data.logical_errors > 0 ? 'var(--red)' : 'var(--green)';
+  document.getElementById('rm-rate').textContent = (data.logical_error_rate * 100).toFixed(1) + '%';
+  document.getElementById('reg-metrics').style.display = '';
+  const verd = document.getElementById('reg-verdict');
+  verd.style.display = '';
+  if (data.logical_errors === 0) {
+    verd.className   = 'shot-note ok';
+    verd.textContent = `✓  All ${data.total_patches} patches corrected  ·  ${fmt(data.total_physical)} physical qubits`;
+  } else {
+    verd.className   = 'shot-note fail';
+    verd.textContent = `✗  ${data.logical_errors} / ${data.total_patches} patches have logical errors`;
+  }
+}
+
+async function runRegister() {
+  if (RG.running) return;
+  RG.running = true;
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true; btn.textContent = 'running…';
+  try {
+    const d = S.d || 3;
+    const url = `${API}/api/register?n=${RG.n}&m=${RG.m}&d=${d}&p=${RG.p}`;
+    const data = await fetch(url).then(r => r.json());
+    drawRegister(data);
+    updateRegMetrics(data);
+  } catch {
+    const verd = document.getElementById('reg-verdict');
+    verd.className = 'shot-note idle'; verd.textContent = 'register shot failed';
+    verd.style.display = '';
+  } finally {
+    RG.running = false;
+    btn.disabled = false; btn.textContent = '▶ RUN REGISTER';
+  }
+}
+
+function wireRegister() {
+  document.getElementById('reg-p-slider').addEventListener('input', function () {
+    const pct = (+this.value / 10).toFixed(1);
+    document.getElementById('reg-p-val').textContent = pct;
+    RG.p = +this.value / 1000;
+  });
+  document.querySelectorAll('[data-n]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      RG.n = +btn.dataset.n;
+      document.querySelectorAll('[data-n]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.querySelectorAll('[data-m]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      RG.m = +btn.dataset.m;
+      document.querySelectorAll('[data-m]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.getElementById('reg-btn').addEventListener('click', runRegister);
+}
+
+// ================================================================
 // BOOT
 // ================================================================
 async function boot() {
@@ -1478,6 +1666,7 @@ async function boot() {
     // FT scheduler
     wireScheduler();
     loadSchedule('cnot');
+    wireRegister();
   } catch {
     setStatus('err', 'backend offline — cd backend && uvicorn server:app');
   }
