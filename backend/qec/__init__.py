@@ -4,3 +4,5 @@ from .resource import estimate
 from .surgery import make_merged_geometry, run_merge_shot
 from .scheduler import list_circuits, get_schedule
 from .register import run_register
+from .compiler import list_algorithms, compile_algorithm
+from .runtime import run as run_os

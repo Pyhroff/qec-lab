@@ -255,6 +255,52 @@ input[type=range]{
 .mval{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--blue);line-height:1}
 .mlbl{font-size:7px;letter-spacing:.12em;color:var(--tx-d);margin-top:3px}
 
+/* ── OS runtime panel ───────────────────────────────────────────────────── */
+.algo-sel{
+  width:100%;background:rgba(0,0,0,.35);border:1px solid var(--gb);
+  color:var(--tx-b);font-family:var(--mono);font-size:11px;
+  padding:8px 10px;border-radius:6px;cursor:pointer;margin-bottom:8px;
+  -webkit-appearance:none;appearance:none;
+}
+.algo-sel:focus{outline:none;border-color:var(--cyan)}
+.custom-fields{margin-top:4px;display:flex;flex-direction:column;gap:6px}
+.cf-row{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.cf-row label{font-size:8px;letter-spacing:.14em;color:var(--tx-d);min-width:70px}
+.cf-row input[type=number]{
+  flex:1;background:rgba(0,0,0,.35);border:1px solid var(--gb);
+  color:var(--tx-b);font-family:var(--mono);font-size:11px;
+  padding:5px 8px;border-radius:5px;text-align:right;
+}
+.cf-row input[type=number]:focus{outline:none;border-color:var(--cyan)}
+.os-gate-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}
+.os-report{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.os-bignum{
+  background:rgba(0,0,0,.3);border:1px solid var(--gb);border-radius:8px;
+  padding:10px 12px;text-align:center;
+}
+.os-bignum .bn-val{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--cyan);line-height:1}
+.os-bignum .bn-lbl{font-size:8px;letter-spacing:.14em;color:var(--tx-d);margin-top:4px}
+.os-bench{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.os-bench-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 8px;border-radius:5px;
+  background:rgba(0,0,0,.25);border:1px solid var(--gb);
+  font-size:8px;
+}
+.os-bench-mine{background:rgba(0,245,228,.08);border-color:rgba(0,245,228,.3)}
+.os-bench-row .br-l{color:var(--tx-d);font-family:var(--mono)}
+.os-bench-row .br-v{font-family:var(--mono);color:var(--cyan)}
+.os-bench-row.os-bench-mine .br-l{color:var(--teal)}
+.os-bench-row.os-bench-mine .br-v{color:var(--teal)}
+.os-sens-wrap{margin-top:8px}
+#os-sens-svg{width:100%;height:90px;display:block}
+.os-runtime-note{
+  margin-top:6px;padding:6px 10px;border-radius:6px;font-family:var(--mono);
+  font-size:9px;letter-spacing:.08em;text-align:center;
+}
+.os-runtime-note.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--green)}
+.os-runtime-note.warn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);color:var(--amber)}
+
 /* ── logical qubit register ─────────────────────────────────────────────── */
 .nm-row{display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .nm-lbl{font-size:8px;letter-spacing:.14em;color:var(--tx-d);min-width:14px}
@@ -523,6 +569,88 @@ input[type=range]{
         <div class="mcard"><div class="mval" id="rm-rate">—</div><div class="mlbl">ERR. RATE</div></div>
       </div>
       <div id="reg-verdict" class="shot-note idle" style="display:none;margin-top:6px"></div>
+    </div>
+
+    <!-- OS RUNTIME -->
+    <div class="panel">
+      <div class="ptitle">OS RUNTIME — CIRCUIT COMPILER</div>
+      <div style="font-size:8px;color:var(--tx-d);margin-bottom:10px;line-height:1.65">
+        Submit an algorithm → compile → fault-tolerant resource estimate + sensitivity sweep.
+        Validates against Gidney 2019/2025 published benchmarks.
+      </div>
+
+      <select class="algo-sel" id="os-algo">
+        <option value="shor-rsa2048">Shor — RSA-2048 (Gidney 2025)</option>
+        <option value="grover-n50">Grover — n=50 search</option>
+        <option value="bell">Bell pair (Clifford baseline)</option>
+        <option value="custom">Custom circuit</option>
+      </select>
+
+      <div id="os-custom-fields" class="custom-fields" style="display:none">
+        <div class="cf-row"><label>LOGICAL QUBITS</label><input type="number" id="cf-nlog" value="10" min="1" max="10000"></div>
+        <div class="cf-row"><label>T-GATES</label>       <input type="number" id="cf-tcount" value="0" min="0"></div>
+        <div class="cf-row"><label>CNOT</label>          <input type="number" id="cf-cnot" value="0" min="0"></div>
+        <div class="cf-row"><label>TOFFOLI</label>       <input type="number" id="cf-toffoli" value="0" min="0"></div>
+      </div>
+
+      <div class="ctrl-lbl" style="margin-top:8px">
+        <span>PHYSICAL ERROR RATE</span>
+        <span class="ctrl-v"><span id="os-p-val">0.10</span>%</span>
+      </div>
+      <input type="range" id="os-p-slider" min="5" max="30" value="10" step="1">
+      <div class="range-ends"><span>0.05%</span><span>0.30%</span></div>
+
+      <div class="btn-row">
+        <button class="btn" id="os-run-btn" style="border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,228,.08)">
+          ▶ SUBMIT JOB
+        </button>
+      </div>
+
+      <!-- compile summary (gate counts) -->
+      <div id="os-gate-grid" class="os-gate-grid" style="display:none">
+        <div class="mcard"><div class="mval" id="og-nlog">—</div><div class="mlbl">LOGICAL Q.</div></div>
+        <div class="mcard"><div class="mval" id="og-t">—</div>   <div class="mlbl">T-GATES</div></div>
+        <div class="mcard"><div class="mval" id="og-d">—</div>   <div class="mlbl">DISTANCE d</div></div>
+      </div>
+
+      <!-- physical qubit bignum -->
+      <div id="os-bignum-wrap" style="display:none" class="os-report">
+        <div class="os-bignum">
+          <div class="bn-val" id="og-phys">—</div>
+          <div class="bn-lbl">TOTAL PHYSICAL QUBITS</div>
+        </div>
+        <div class="os-bignum" style="border-color:rgba(167,139,250,.35)">
+          <div class="bn-val" style="color:var(--violet)" id="og-runtime">—</div>
+          <div class="bn-lbl">EST. RUNTIME</div>
+        </div>
+      </div>
+
+      <!-- benchmark comparison -->
+      <div id="os-bench-wrap" style="display:none" class="os-bench">
+        <div style="font-size:8px;color:var(--tx-d);margin-bottom:4px;letter-spacing:.1em">PUBLISHED BENCHMARKS (RSA-2048, p=0.1%)</div>
+        <div class="os-bench-row"><span class="br-l">Gidney & Ekerå 2019</span><span class="br-v">~20 M</span></div>
+        <div class="os-bench-row"><span class="br-l">Gidney 2025</span>        <span class="br-v">&lt; 1 M</span></div>
+        <div class="os-bench-row"><span class="br-l">Heterogeneous 2026</span> <span class="br-v">~100 K</span></div>
+        <div class="os-bench-row os-bench-mine">
+          <span class="br-l">THIS MODEL</span>
+          <span class="br-v" id="og-bench-mine">—</span>
+        </div>
+      </div>
+
+      <!-- sensitivity sweep chart -->
+      <div id="os-sens-wrap" class="os-sens-wrap" style="display:none">
+        <div style="font-size:8px;color:var(--tx-d);margin-bottom:6px;letter-spacing:.1em">
+          SENSITIVITY — physical qubits vs p
+        </div>
+        <svg id="os-sens-svg"></svg>
+      </div>
+
+      <!-- runtime note -->
+      <div id="os-note" class="os-runtime-note" style="display:none"></div>
+
+      <div style="margin-top:8px;font-size:8px;color:var(--tx-d);line-height:1.65">
+        Surface code · 2d² phys/logical · T-injection bottleneck · ~1 µs/round (superconducting)
+      </div>
     </div>
 
   </div><!-- /sidebar -->
@@ -1644,6 +1772,187 @@ function wireRegister() {
 }
 
 // ================================================================
+// OS RUNTIME
+// ================================================================
+function fmtBig(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + ' M';
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + ' K';
+  return String(n);
+}
+
+function fmtRuntime(s) {
+  if (s < 0.001)   return (s * 1e6).toFixed(1) + ' µs';
+  if (s < 1)       return (s * 1000).toFixed(1) + ' ms';
+  if (s < 60)      return s.toFixed(1) + ' s';
+  if (s < 3600)    return (s / 60).toFixed(1) + ' min';
+  if (s < 86400)   return (s / 3600).toFixed(1) + ' hr';
+  return (s / 86400).toFixed(1) + ' days';
+}
+
+function drawSensitivity(data) {
+  const svg = document.getElementById('os-sens-svg');
+  const W = svg.clientWidth || 260, H = 90;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = '';
+
+  const pad = { l: 48, r: 8, t: 6, b: 22 };
+  const cw = W - pad.l - pad.r;
+  const ch = H - pad.t - pad.b;
+
+  const vals  = data.map(d => d.total_physical);
+  const ps    = data.map(d => d.p_physical);
+  const maxV  = Math.max(...vals);
+  const xSc   = i => pad.l + (i / (data.length - 1)) * cw;
+  const ySc   = v => pad.t + ch - (v / maxV) * ch;
+
+  // baseline grid
+  const ns = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const line = (x1,y1,x2,y2,col,op=0.2) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg','line');
+    el.setAttribute('x1',x1); el.setAttribute('y1',y1);
+    el.setAttribute('x2',x2); el.setAttribute('y2',y2);
+    el.setAttribute('stroke',col); el.setAttribute('stroke-opacity',op);
+    el.setAttribute('stroke-width','0.5');
+    svg.appendChild(el);
+  };
+  const text = (x,y,t,col,anchor='middle',size=7) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg','text');
+    el.setAttribute('x',x); el.setAttribute('y',y);
+    el.setAttribute('fill',col); el.setAttribute('font-size',size);
+    el.setAttribute('text-anchor',anchor);
+    el.setAttribute('font-family','Space Mono,monospace');
+    el.textContent = t;
+    svg.appendChild(el);
+  };
+
+  // grid lines
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    const y = pad.t + ch * (1 - f);
+    line(pad.l, y, pad.l + cw, y, '#60a5fa');
+    if (f < 1) text(pad.l - 3, y + 3, fmtBig(maxV * f), '#94a3b8', 'end', 6);
+  });
+
+  // area
+  const pts = data.map((d, i) => `${xSc(i)},${ySc(d.total_physical)}`).join(' ');
+  const areaD = `M${xSc(0)},${ySc(data[0].total_physical)} ` +
+    data.slice(1).map((d,i) => `L${xSc(i+1)},${ySc(d.total_physical)}`).join(' ') +
+    ` L${xSc(data.length-1)},${pad.t+ch} L${xSc(0)},${pad.t+ch} Z`;
+  const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  area.setAttribute('d', areaD);
+  area.setAttribute('fill', 'rgba(0,245,228,0.10)');
+  svg.appendChild(area);
+
+  // line
+  const linePath = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  linePath.setAttribute('points', pts);
+  linePath.setAttribute('fill', 'none');
+  linePath.setAttribute('stroke', '#00f5e4');
+  linePath.setAttribute('stroke-width', '1.5');
+  svg.appendChild(linePath);
+
+  // dots + x labels
+  data.forEach((d, i) => {
+    const cx = xSc(i), cy = ySc(d.total_physical);
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+    dot.setAttribute('r', 3); dot.setAttribute('fill', '#00f5e4');
+    svg.appendChild(dot);
+    if (i % 2 === 0 || i === data.length - 1) {
+      text(cx, H - 4, (d.p_physical * 100).toFixed(2) + '%', '#94a3b8', 'middle', 6);
+    }
+  });
+
+  // axes
+  line(pad.l, pad.t, pad.l, pad.t + ch, '#60a5fa', 0.4);
+  line(pad.l, pad.t + ch, pad.l + cw, pad.t + ch, '#60a5fa', 0.4);
+}
+
+async function runOsJob() {
+  const algo  = document.getElementById('os-algo').value;
+  const pRaw  = parseInt(document.getElementById('os-p-slider').value, 10);
+  const p     = pRaw / 10000;   // slider 5..30 → 0.0005..0.003
+
+  const body = { algorithm: algo, p_physical: p };
+  if (algo === 'custom') {
+    body.n_logical     = parseInt(document.getElementById('cf-nlog').value)    || 2;
+    body.t_count       = parseInt(document.getElementById('cf-tcount').value)  || 0;
+    body.cnot_count    = parseInt(document.getElementById('cf-cnot').value)    || 0;
+    body.toffoli_count = parseInt(document.getElementById('cf-toffoli').value) || 0;
+  }
+
+  const btn = document.getElementById('os-run-btn');
+  btn.disabled = true; btn.textContent = '⏳ RUNNING…';
+
+  try {
+    const r = await fetch(`${API}/api/run`, { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+
+    // gate grid
+    document.getElementById('og-nlog').textContent = fmtBig(d.n_logical);
+    document.getElementById('og-t').textContent    = fmtBig(d.t_count);
+    document.getElementById('og-d').textContent    = 'd = ' + d.d;
+    document.getElementById('os-gate-grid').style.display = 'grid';
+
+    // big numbers
+    document.getElementById('og-phys').textContent    = fmtBig(d.total_physical);
+    document.getElementById('og-runtime').textContent = fmtRuntime(d.runtime_s);
+    document.getElementById('os-bignum-wrap').style.display = 'flex';
+
+    // benchmark
+    document.getElementById('og-bench-mine').textContent = fmtBig(d.total_physical);
+    if (algo === 'shor-rsa2048') {
+      document.getElementById('os-bench-wrap').style.display = 'block';
+    } else {
+      document.getElementById('os-bench-wrap').style.display = 'none';
+    }
+
+    // sensitivity
+    if (d.sensitivity && d.sensitivity.length) {
+      document.getElementById('os-sens-wrap').style.display = 'block';
+      setTimeout(() => drawSensitivity(d.sensitivity), 50);
+    }
+
+    // note
+    const note = document.getElementById('os-note');
+    if (d.feasible) {
+      note.className = 'os-runtime-note ok';
+      note.textContent = `✓ FEASIBLE — ${fmtBig(d.total_physical)} qubits at p=${(p*100).toFixed(3)}%`;
+    } else {
+      note.className = 'os-runtime-note warn';
+      note.textContent = `⚠ ${fmtBig(d.total_physical)} qubits — exceeds 10 M threshold`;
+    }
+    note.style.display = 'block';
+
+  } catch(e) {
+    const note = document.getElementById('os-note');
+    note.className = 'os-runtime-note warn';
+    note.textContent = 'Error: ' + e.message;
+    note.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ SUBMIT JOB';
+  }
+}
+
+function wireOsRuntime() {
+  const algoSel    = document.getElementById('os-algo');
+  const pSlider    = document.getElementById('os-p-slider');
+  const pVal       = document.getElementById('os-p-val');
+  const customWrap = document.getElementById('os-custom-fields');
+
+  algoSel.addEventListener('change', () => {
+    customWrap.style.display = algoSel.value === 'custom' ? 'flex' : 'none';
+  });
+
+  pSlider.addEventListener('input', () => {
+    pVal.textContent = (parseInt(pSlider.value) / 100).toFixed(2);
+  });
+
+  document.getElementById('os-run-btn').addEventListener('click', runOsJob);
+}
+
+// ================================================================
 // BOOT
 // ================================================================
 async function boot() {
@@ -1667,6 +1976,7 @@ async function boot() {
     wireScheduler();
     loadSchedule('cnot');
     wireRegister();
+    wireOsRuntime();
   } catch {
     setStatus('err', 'backend offline — cd backend && uvicorn server:app');
   }

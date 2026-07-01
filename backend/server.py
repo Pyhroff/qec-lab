@@ -7,6 +7,8 @@ from qec import (
     make_merged_geometry, run_merge_shot, run_phenomenological,
     list_circuits, get_schedule,
     run_register,
+    list_algorithms, compile_algorithm,
+    run_os,
 )
 
 app = FastAPI(title="QEC Lab API")
@@ -112,3 +114,57 @@ def register_endpoint(
     seed: int | None = Query(None),
 ):
     return run_register(n, m, d, p, seed)
+
+
+# ── Quantum OS runtime ────────────────────────────────────────────────────────
+
+@app.get("/api/algorithms")
+def algorithms_endpoint():
+    return list_algorithms()
+
+
+class CompileRequest(BaseModel):
+    algorithm:     str = "shor-rsa2048"
+    n_logical:     int = Field(2, ge=1)
+    t_count:       int = Field(0, ge=0)
+    cnot_count:    int = Field(0, ge=0)
+    h_count:       int = Field(0, ge=0)
+    toffoli_count: int = Field(0, ge=0)
+
+
+@app.post("/api/compile")
+def compile_endpoint(req: CompileRequest):
+    from dataclasses import asdict
+    try:
+        result = compile_algorithm(
+            req.algorithm, req.n_logical, req.t_count,
+            req.cnot_count, req.h_count, req.toffoli_count,
+        )
+        return asdict(result)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class RunRequest(BaseModel):
+    algorithm:     str   = "shor-rsa2048"
+    p_physical:    float = Field(0.001, ge=1e-4, le=0.05)
+    n_logical:     int   = Field(2, ge=1)
+    t_count:       int   = Field(0, ge=0)
+    cnot_count:    int   = Field(0, ge=0)
+    h_count:       int   = Field(0, ge=0)
+    toffoli_count: int   = Field(0, ge=0)
+
+
+@app.post("/api/run")
+def run_endpoint(req: RunRequest):
+    try:
+        report = run_os(
+            req.algorithm, req.p_physical,
+            req.n_logical, req.t_count,
+            req.cnot_count, req.h_count, req.toffoli_count,
+        )
+        return report.to_dict()
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
