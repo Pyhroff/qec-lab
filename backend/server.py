@@ -63,10 +63,11 @@ def threshold_endpoint(shots: int = Query(600, ge=100, le=2000)):
 
 @app.get("/api/resource")
 def resource_endpoint(
-    p: float = Query(0.001, ge=1e-4, le=0.05),
+    p: float = Query(0.001, ge=1e-4, le=0.009),
     n_logical: int = Query(3000, ge=100, le=20000),
     t_gates: int = Query(3_000_000_000, ge=1_000_000),
 ):
+    """Return below-threshold estimates only; use /api/run for explicit domain flags."""
     return estimate(p_physical=p, n_logical=n_logical, t_gates=t_gates)
 
 
