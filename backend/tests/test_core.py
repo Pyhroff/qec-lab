@@ -150,4 +150,5 @@ def test_runtime_propagates_resource_model_domain_flags():
     assert report["model_domain_valid"] is False
     assert report["distance_cap_exceeded"] is True
     assert report["feasible"] is False
+    assert report["within_factor"] is None
     assert all("model_domain_valid" in row for row in report["sensitivity"])
