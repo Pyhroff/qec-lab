@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query
+import os\n\nfrom fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
