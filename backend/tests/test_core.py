@@ -104,6 +104,57 @@ def test_api_cors_has_explicit_local_allowlist():
 
 
 
+
+def test_monte_carlo_resource_scenarios_are_seeded_and_labeled_as_scenarios():
+    from qec.uncertainty import monte_carlo_resource_scenarios
+
+    kwargs = {
+        "samples": 100,
+        "seed": 123,
+        "p_min": 0.001,
+        "p_max": 0.002,
+        "n_logical_min": 100,
+        "n_logical_max": 200,
+        "t_gates_min": 1000,
+        "t_gates_max": 2000,
+        "p_total_failure_min": 0.2,
+        "p_total_failure_max": 0.8,
+    }
+    first = monte_carlo_resource_scenarios(**kwargs)
+    second = monte_carlo_resource_scenarios(**kwargs)
+    assert first == second
+    assert first["measurement_type"] == "monte_carlo_scenario_sweep_not_empirical_uncertainty"
+    assert first["sample_count"] == 100
+    assert first["seed"] == 123
+    assert first["results"]["total_physical"]["p05"] <= first["results"]["total_physical"]["p50"]
+    assert first["results"]["total_physical"]["p50"] <= first["results"]["total_physical"]["p95"]
+    assert 0.0 <= first["rates"]["distance_cap_exceeded"] <= 1.0
+    assert "confidence interval" in first["interpretation"].lower()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"samples": 0},
+        {"samples": 10, "p_min": 0.005, "p_max": 0.001},
+        {"samples": 10, "n_logical_min": 10, "n_logical_max": 1},
+        {"samples": 10, "t_gates_min": 100, "t_gates_max": 10},
+        {"samples": 10, "p_total_failure_min": 0.8, "p_total_failure_max": 0.2},
+    ],
+)
+def test_monte_carlo_resource_scenarios_reject_invalid_ranges(kwargs):
+    from qec.uncertainty import monte_carlo_resource_scenarios
+
+    with pytest.raises(ValueError):
+        monte_carlo_resource_scenarios(**kwargs)
+
+
+def test_resource_uncertainty_api_is_registered():
+    from server import app
+
+    assert any(route.path == "/api/resource/uncertainty" for route in app.routes)
+
+
 def test_resource_sweep_records_reproducible_parameters_and_model_limits():
     from qec.resource_sweep import build_sweep_report
 
