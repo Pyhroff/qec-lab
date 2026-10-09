@@ -73,6 +73,18 @@ docs/
 
 ---
 
+## Scenario uncertainty analysis
+
+The API endpoint `GET /api/resource/uncertainty` runs a seeded Monte Carlo sweep over explicitly supplied ranges for physical error rate, logical-qubit count, T-gate count, and total failure budget. It reports p05/p50/p95, mean, sample standard deviation, and rates for cap-exceeded, model-domain-valid, and feasible scenarios.
+
+Example:
+
+```bash
+curl 'http://localhost:8001/api/resource/uncertainty?samples=1000&seed=20261010&p_min=0.0005&p_max=0.005&n_logical_min=1000&n_logical_max=5000&t_gates_min=1000000000&t_gates_max=5000000000'
+```
+
+**Interpretation:** this is a distribution of outputs under user-chosen input ranges, not a calibrated probability distribution for future hardware and not an empirical confidence interval. The default uniform sampling policy is an exploratory sensitivity choice; the model still uses its fixed analytical surface-code approximation and omits architecture-specific overhead. Record the ranges and seed when comparing reports.
+
 ## API
 
 ```
