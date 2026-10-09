@@ -29,6 +29,18 @@ jobs:
           python -m pip install -r requirements.txt pytest
       - name: Run regression tests
         run: python -m pytest -q tests
+      - name: Run reproducible resource-sweep smoke test
+        run: |
+          python -m qec.resource_sweep --p-values 0.001,0.005 --t-gates 1000000,3000000000 --output /tmp/qec-resource-sweep.json
+          python - <<'PY'
+          import json
+          with open("/tmp/qec-resource-sweep.json", encoding="utf-8") as handle:
+              report = json.load(handle)
+          assert report["result_count"] == 4
+          assert report["measurement_type"] == "analytical_model_sweep_not_hardware_measurement"
+          assert report["code_revision"]
+          print(f"Resource sweep passed: {report['result_count']} cases, {report['runtime_seconds']} seconds")
+          PY
       - name: Compile Python sources
         run: python -m compileall -q .
 
