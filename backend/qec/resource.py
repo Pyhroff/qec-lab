@@ -117,7 +117,7 @@ def estimate(
         "p_L_achieved": p_L,
         "phys_per_logical": phys_per_logical,
         "total_physical": total,
-        "feasible": total < 10_000_000,
+        "feasible": total < 10_000_000 and p_physical < _P_TH and d != 61,
         "model_domain_valid": p_physical < _P_TH,
         "distance_cap_exceeded": d == 61,
         "target_met_within_search_cap": d != 61,
