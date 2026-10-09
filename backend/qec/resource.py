@@ -28,13 +28,27 @@ _P_TH = 0.01
 _A = 0.1  # pre-factor — empirically calibrated for surface codes
 
 
+def _validate_probability(value: float, name: str, *, allow_zero: bool = True) -> None:
+    lower_ok = value >= 0 if allow_zero else value > 0
+    if not isinstance(value, (int, float)) or not math.isfinite(value) or not lower_ok or value > 1:
+        lower = "0" if allow_zero else "greater than 0"
+        raise ValueError(f"{name} must be {lower} and at most 1")
+
+
 def logical_error_rate(p: float, d: int) -> float:
-    """p_L ≈ A * (p / p_th)^((d+1)/2)"""
+    """Approximate p_L; validates probabilities and odd code distance."""
+    _validate_probability(p, "p")
+    if not isinstance(d, int) or d < 3 or d % 2 == 0:
+        raise ValueError("d must be an odd integer >= 3")
+    if p == 0:
+        return 0.0
     return _A * (p / _P_TH) ** ((d + 1) / 2)
 
 
 def min_distance(p: float, p_L_per_gate: float) -> int:
-    """Smallest odd d >= 3 such that p_L(p, d) < p_L_per_gate."""
+    """Smallest odd d >= 3 meeting the target, or 61 if the cap is exceeded."""
+    _validate_probability(p, "p")
+    _validate_probability(p_L_per_gate, "p_L_per_gate", allow_zero=False)
     for d in range(3, 61, 2):
         if logical_error_rate(p, d) < p_L_per_gate:
             return d
@@ -68,6 +82,13 @@ def estimate(
       feasible        : bool — True if total < 10 million
       references      : {label: qubit_count} dict of published estimates
     """
+    _validate_probability(p_physical, "p_physical")
+    if not isinstance(n_logical, int) or n_logical < 1:
+        raise ValueError("n_logical must be a positive integer")
+    if not isinstance(t_gates, int) or t_gates < 1:
+        raise ValueError("t_gates must be a positive integer")
+    _validate_probability(p_total_failure, "p_total_failure", allow_zero=False)
+
     # Target per-gate failure budget
     p_L_per_gate = p_total_failure / t_gates
 
