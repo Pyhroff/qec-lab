@@ -121,3 +121,14 @@ MIT license.
 CI checks deterministic invariants for surface-code geometry, seeded noisy-shot reproducibility, probability and resource-input validation, monotonic behavior of the simplified logical-error approximation below its configured threshold, and explicit local CORS policy. These tests establish implementation consistency, not empirical calibration against a hardware backend.
 
 The resource estimator is a simplified analytical model. Its outputs depend on assumptions such as the logical-error approximation, threshold, prefactor, code distance cap, algorithmic gate counts, and accepted total failure budget. Treat the result as a reproducible scenario estimate—not a benchmark of a specific quantum processor or a guarantee that RSA-2048 factoring is feasible. When comparing runs, record all inputs and the code revision; published resource estimates can differ substantially because their architectures and arithmetic assumptions differ.
+
+
+## Reproducible resource sweep
+
+From `backend/`, run:
+
+```bash
+python -m qec.resource_sweep --output resource-sweep.json
+```
+
+The JSON manifest records the code revision, Python/platform, parameter grid, threshold/prefactor assumptions, run duration, and one result per physical-error-rate × T-gate-count pair. A reported distance of `61` is a sentinel meaning the search found no solution for odd distances `3..59`; the associated qubit count is a cap reference, not a validated minimum. The analytical model is only predictive below its configured 1% threshold. Resource API controls are restricted to 0.1–0.9%; the separate runtime endpoint marks out-of-domain inputs explicitly.
