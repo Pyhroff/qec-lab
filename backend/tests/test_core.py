@@ -130,3 +130,24 @@ def test_resource_sweep_rejects_threshold_and_empty_grids():
         build_sweep_report(p_values=[0.01], t_gate_counts=[1000])
     with pytest.raises(ValueError):
         build_sweep_report(p_values=[], t_gate_counts=[1000])
+
+
+
+def test_above_threshold_resource_estimate_is_flagged_not_reported_feasible():
+    assert logical_error_rate(0.05, 3) == 1.0
+    result = estimate(p_physical=0.05, n_logical=100, t_gates=1_000_000)
+    assert result["model_domain_valid"] is False
+    assert result["distance_cap_exceeded"] is True
+    assert result["target_met_within_search_cap"] is False
+    assert result["total_physical_is_cap_reference"] is True
+    assert result["feasible"] is False
+
+
+def test_runtime_propagates_resource_model_domain_flags():
+    from qec.runtime import run
+
+    report = run("shor-rsa2048", p_physical=0.05).to_dict()
+    assert report["model_domain_valid"] is False
+    assert report["distance_cap_exceeded"] is True
+    assert report["feasible"] is False
+    assert all("model_domain_valid" in row for row in report["sensitivity"])
