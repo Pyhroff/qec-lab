@@ -6,7 +6,9 @@
 ![Stim](https://img.shields.io/badge/Stim-1.16-purple)
 ![PyMatching v2](https://img.shields.io/badge/PyMatching-v2-green)
 
-This is an educational simulator, not a validated forecast of quantum hardware capabilities or a cryptographic break-time prediction. Resource estimates are assumption-sensitive; cite the source papers and report model assumptions when interpreting them.\n\nThis is the second half of a two-project arc. The first half - [Quantum Collapse](https://github.com/Pyhroff/quantum-collapse) - simulates what happens when a cryptographically relevant quantum computer breaks RSA: cascading infrastructure failure across banks, CAs, cloud providers, and government systems. It's the "what breaks" story.
+This is an educational simulator, not a validated forecast of quantum hardware capabilities or a cryptographic break-time prediction. Resource estimates are assumption-sensitive; cite the source papers and report model assumptions when interpreting them.
+
+This is the second half of a two-project arc. The first half - [Quantum Collapse](https://github.com/Pyhroff/quantum-collapse) - simulates what happens when a cryptographically relevant quantum computer breaks RSA: cascading infrastructure failure across banks, CAs, cloud providers, and government systems. It's the "what breaks" story.
 
 Quantum OS is the "how and when" story. It simulates the fault-tolerant quantum computer that would actually do that: a surface code engine running real MWPM decoding, lattice surgery primitives, and a physical resource estimator grounded in current literature. The gap between "cryptographically relevant QC" and today's hardware is mostly an error correction problem, and this is what that problem looks like under the hood.
 
@@ -112,3 +114,10 @@ Phenomenological noise is the middle ground: data errors plus measurement flip p
 ---
 
 MIT license.
+
+
+## Validation and scientific limitations
+
+CI checks deterministic invariants for surface-code geometry, seeded noisy-shot reproducibility, probability and resource-input validation, monotonic behavior of the simplified logical-error approximation below its configured threshold, and explicit local CORS policy. These tests establish implementation consistency, not empirical calibration against a hardware backend.
+
+The resource estimator is a simplified analytical model. Its outputs depend on assumptions such as the logical-error approximation, threshold, prefactor, code distance cap, algorithmic gate counts, and accepted total failure budget. Treat the result as a reproducible scenario estimate—not a benchmark of a specific quantum processor or a guarantee that RSA-2048 factoring is feasible. When comparing runs, record all inputs and the code revision; published resource estimates can differ substantially because their architectures and arithmetic assumptions differ.
