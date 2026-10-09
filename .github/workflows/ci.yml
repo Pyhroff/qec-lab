@@ -41,6 +41,23 @@ jobs:
           assert report["code_revision"]
           print(f"Resource sweep passed: {report['result_count']} cases, {report['runtime_seconds']} seconds")
           PY
+      - name: Run PQC evidence-to-QEC bridge smoke test
+        run: |
+          python -m qec.scenario_bridge tests/fixtures/quantum_collapse_scenario.json --n-logical 100 --t-gates 1000000 --output /tmp/qec-bridge.json
+          python - <<'PY'
+          import json
+          with open("/tmp/qec-bridge.json", encoding="utf-8") as handle:
+              report = json.load(handle)
+          assert report["measurement_type"] == "conditional_analytical_resource_estimate_not_hardware_measurement"
+          assert report["summary"]["supported_rsa_node_count"] == 1
+          assert report["summary"]["unsupported_node_count"] == 1
+          rows = {row["crypto"]: row for row in report["findings"]}
+          assert rows["RSA"]["status"] == "estimated"
+          assert rows["RSA"]["resource_estimate"]["n_logical"] == 100
+          assert rows["ECC-P256"]["status"] == "unsupported_crypto_model"
+          assert rows["ECC-P256"]["resource_estimate"] is None
+          print("PQC-to-QEC bridge passed: RSA estimate scoped; ECC retained as unsupported evidence")
+          PY
       - name: Compile Python sources
         run: python -m compileall -q .
 
