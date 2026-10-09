@@ -421,8 +421,8 @@ input[type=range]{
         <span>PHYSICAL ERROR RATE</span>
         <span class="ctrl-v"><span id="rp-val">0.1</span>%</span>
       </div>
-      <input type="range" id="rp-slider" min="1" max="40" value="1" step="1">
-      <div class="range-ends"><span>0.1%</span><span>4.0%</span></div>
+      <input type="range" id="rp-slider" min="1" max="9" value="1" step="1">
+      <div class="range-ends"><span>0.1%</span><span>0.9% · below threshold</span></div>
       <div class="ctrl-lbl">
         <span>LOGICAL QUBITS</span>
         <span class="ctrl-v"><span id="rl-val">3 000</span></span>
@@ -1047,7 +1047,7 @@ function drawThreshold(data) {
 // RESOURCE ESTIMATOR
 // ================================================================
 async function updateResource() {
-  const pPct = +document.getElementById('rp-slider').value / 10;   // 0.1..4.0%
+  const pPct = +document.getElementById('rp-slider').value / 10;   // 0.1..0.9%
   const p = pPct / 100;
   const nL = +document.getElementById('rl-slider').value;
   document.getElementById('rp-val').textContent = pPct.toFixed(1);
