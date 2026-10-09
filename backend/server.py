@@ -1,4 +1,6 @@
-import os\n\nfrom fastapi import FastAPI, Query
+import os
+
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -13,11 +15,20 @@ from qec import (
 
 app = FastAPI(title="QEC Lab API")
 
+_allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "QEC_LAB_ALLOWED_ORIGINS",
+        "http://localhost:8080,http://127.0.0.1:8080",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
