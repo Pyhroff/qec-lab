@@ -59,3 +59,45 @@ def test_resource_estimate_is_explicit_and_nonnegative():
     assert result["d"] % 2 == 1
     assert result["total_physical"] == result["n_logical"] * result["phys_per_logical"]
     assert result["total_physical"] > 0
+
+
+
+def test_seeded_noisy_shot_is_reproducible():
+    first = run_shot(d=3, p=0.03, seed=9876)
+    second = run_shot(d=3, p=0.03, seed=9876)
+    assert first == second
+
+
+def test_surface_code_error_model_is_monotonic_below_threshold():
+    low_noise = logical_error_rate(0.001, 3)
+    higher_noise = logical_error_rate(0.002, 3)
+    larger_distance = logical_error_rate(0.001, 5)
+    assert 0 <= larger_distance < low_noise < higher_noise
+
+
+def test_required_distance_does_not_increase_when_noise_decreases():
+    noisier = min_distance(0.001, 1e-6)
+    cleaner = min_distance(0.0005, 1e-6)
+    assert cleaner <= noisier
+    assert cleaner >= 3 and cleaner % 2 == 1
+    assert noisier >= 3 and noisier % 2 == 1
+
+
+def test_resource_estimator_rejects_boolean_counts():
+    with pytest.raises(ValueError):
+        estimate(p_physical=0.001, n_logical=True)
+    with pytest.raises(ValueError):
+        estimate(p_physical=0.001, t_gates=True)
+
+
+def test_api_cors_has_explicit_local_allowlist():
+    from server import app
+
+    cors = next(m for m in app.user_middleware if m.cls.__name__ == "CORSMiddleware")
+    assert cors.kwargs["allow_origins"] == [
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]
+    assert cors.kwargs["allow_methods"] == ["GET", "POST"]
+    assert cors.kwargs["allow_headers"] == ["Content-Type"]
+    assert "*" not in cors.kwargs["allow_origins"]
