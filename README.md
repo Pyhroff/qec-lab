@@ -6,7 +6,7 @@
 ![Stim](https://img.shields.io/badge/Stim-1.16-purple)
 ![PyMatching v2](https://img.shields.io/badge/PyMatching-v2-green)
 
-This is the second half of a two-project arc. The first half - [Quantum Collapse](https://github.com/Pyhroff/quantum-collapse) - simulates what happens when a cryptographically relevant quantum computer breaks RSA: cascading infrastructure failure across banks, CAs, cloud providers, and government systems. It's the "what breaks" story.
+This is an educational simulator, not a validated forecast of quantum hardware capabilities or a cryptographic break-time prediction. Resource estimates are assumption-sensitive; cite the source papers and report model assumptions when interpreting them.\n\nThis is the second half of a two-project arc. The first half - [Quantum Collapse](https://github.com/Pyhroff/quantum-collapse) - simulates what happens when a cryptographically relevant quantum computer breaks RSA: cascading infrastructure failure across banks, CAs, cloud providers, and government systems. It's the "what breaks" story.
 
 Quantum OS is the "how and when" story. It simulates the fault-tolerant quantum computer that would actually do that: a surface code engine running real MWPM decoding, lattice surgery primitives, and a physical resource estimator grounded in current literature. The gap between "cryptographically relevant QC" and today's hardware is mostly an error correction problem, and this is what that problem looks like under the hood.
 
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 uvicorn server:app --port 8001 --reload
 ```
 
-Then open `frontend/index.html` directly in a browser. No build step, no bundler, just a file open. The page connects to `http://localhost:8001`.
+In a second terminal from the repository root, run `python -m http.server 8080`, then open `http://localhost:8080/frontend/`. The UI connects to `http://localhost:8001`. The API allows these local origins by default; set `QEC_LAB_ALLOWED_ORIGINS` to a comma-separated origin allowlist for a different local setup. Do not expose the development server to untrusted networks.
 
 If you just want to see some numbers without the UI:
 
