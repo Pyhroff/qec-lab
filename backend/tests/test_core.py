@@ -203,3 +203,70 @@ def test_runtime_propagates_resource_model_domain_flags():
     assert report["feasible"] is False
     assert report["within_factor"] is None
     assert all("model_domain_valid" in row for row in report["sensitivity"])
+
+def _sample_quantum_collapse_bridge():
+    return {
+        "schema_version": "1.0",
+        "source": {"format": "SARIF", "version": "2.1.0", "tool": "pqc-scanner"},
+        "observed_evidence": {"finding_count": 2},
+        "modeled_scenario": {
+            "node_count": 2,
+            "edge_count": 0,
+            "nodes": [
+                {
+                    "id": "finding-0001",
+                    "crypto": "RSA",
+                    "evidence_file": "src/auth.py",
+                    "evidence_line": 12,
+                    "evidence_algorithm": "RSA",
+                },
+                {
+                    "id": "finding-0002",
+                    "crypto": "ECC-P256",
+                    "evidence_file": "src/exchange.py",
+                    "evidence_line": 30,
+                    "evidence_algorithm": "ECC/ECDSA/ECDH",
+                },
+            ],
+        },
+    }
+
+
+def test_scenario_bridge_estimates_only_rsa_nodes():
+    from qec.scenario_bridge import build_scenario_report
+
+    report = build_scenario_report(
+        _sample_quantum_collapse_bridge(),
+        p_physical=0.001,
+        n_logical=100,
+        t_gates=1_000_000,
+    )
+    assert report["measurement_type"] == "conditional_analytical_resource_estimate_not_hardware_measurement"
+    assert report["summary"]["supported_rsa_node_count"] == 1
+    assert report["summary"]["unsupported_node_count"] == 1
+    assert report["findings"][0]["status"] == "estimated"
+    assert report["findings"][0]["resource_estimate"]["n_logical"] == 100
+    assert report["findings"][1]["status"] == "unsupported_crypto_model"
+    assert report["findings"][1]["resource_estimate"] is None
+
+
+def test_scenario_bridge_rejects_unrecognized_contract():
+    from qec.scenario_bridge import build_scenario_report
+
+    with pytest.raises(ValueError, match="schema_version 1.0"):
+        build_scenario_report({"schema_version": "2.0"})
+
+
+def test_scenario_bridge_propagates_resource_model_domain_flags():
+    from qec.scenario_bridge import build_scenario_report
+
+    report = build_scenario_report(
+        _sample_quantum_collapse_bridge(),
+        p_physical=0.05,
+        n_logical=100,
+        t_gates=1_000_000,
+    )
+    rsa = report["findings"][0]["resource_estimate"]
+    assert rsa["model_domain_valid"] is False
+    assert rsa["distance_cap_exceeded"] is True
+    assert rsa["feasible"] is False
