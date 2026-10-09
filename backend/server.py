@@ -71,6 +71,41 @@ def resource_endpoint(
     return estimate(p_physical=p, n_logical=n_logical, t_gates=t_gates)
 
 
+# ── resource-estimator scenario uncertainty ───────────────────────────────────
+
+@app.get("/api/resource/uncertainty")
+def resource_uncertainty_endpoint(
+    samples: int = Query(1000, ge=1, le=20000),
+    seed: int = Query(20261010),
+    p_min: float = Query(0.0005, ge=0.0, le=0.009999),
+    p_max: float = Query(0.005, ge=0.0, le=0.009999),
+    n_logical_min: int = Query(1000, ge=1, le=20000),
+    n_logical_max: int = Query(5000, ge=1, le=20000),
+    t_gates_min: int = Query(1_000_000_000, ge=1),
+    t_gates_max: int = Query(5_000_000_000, ge=1),
+    p_total_failure_min: float = Query(0.1, gt=0.0, le=1.0),
+    p_total_failure_max: float = Query(0.9, gt=0.0, le=1.0),
+):
+    """Return scenario-spread summaries, not empirical confidence intervals."""
+    from qec.uncertainty import monte_carlo_resource_scenarios
+    try:
+        return monte_carlo_resource_scenarios(
+            samples=samples,
+            seed=seed,
+            p_min=p_min,
+            p_max=p_max,
+            n_logical_min=n_logical_min,
+            n_logical_max=n_logical_max,
+            t_gates_min=t_gates_min,
+            t_gates_max=t_gates_max,
+            p_total_failure_min=p_total_failure_min,
+            p_total_failure_max=p_total_failure_max,
+        )
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ── lattice surgery ───────────────────────────────────────────────────────────
 
 @app.get("/api/surgery/geometry")
