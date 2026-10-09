@@ -85,9 +85,9 @@ def estimate(
       references      : {label: qubit_count} dict of published estimates
     """
     _validate_probability(p_physical, "p_physical")
-    if not isinstance(n_logical, int) or n_logical < 1:
+    if isinstance(n_logical, bool) or not isinstance(n_logical, int) or n_logical < 1:
         raise ValueError("n_logical must be a positive integer")
-    if not isinstance(t_gates, int) or t_gates < 1:
+    if isinstance(t_gates, bool) or not isinstance(t_gates, int) or t_gates < 1:
         raise ValueError("t_gates must be a positive integer")
     _validate_probability(p_total_failure, "p_total_failure", allow_zero=False)
 
