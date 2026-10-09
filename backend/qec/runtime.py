@@ -136,7 +136,9 @@ def run(
     nonzero = [v for v in references.values() if v > 0]
     nearest = min(nonzero, key=lambda v: abs(v - res["total_physical"])) if nonzero else None
     within_factor = (
-        round(res["total_physical"] / nearest, 2) if nearest and nearest > 0 else None
+        round(res["total_physical"] / nearest, 2)
+        if nearest and nearest > 0 and res["model_domain_valid"] and not res["distance_cap_exceeded"]
+        else None
     )
 
     return RunReport(
