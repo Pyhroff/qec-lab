@@ -89,7 +89,7 @@ python -m qec.scenario_bridge /path/to/scenario.json \
   --p-total-failure 0.5 --output qec-resource-scenario.json
 ```
 
-The output labels itself `conditional_analytical_resource_estimate_not_hardware_measurement`.
+Each output labels itself `conditional_analytical_resource_estimate_not_hardware_measurement`.
 It carries the estimator's model-domain and distance-cap flags and documents that
 the result is assumption-sensitive, omits architecture-specific overhead, and does
 not prove source-code reachability, deployed use, or an attack timeline. Input
