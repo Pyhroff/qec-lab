@@ -131,7 +131,7 @@ From `backend/`, run:
 python -m qec.resource_sweep --output resource-sweep.json
 ```
 
-The JSON manifest records the code revision, Python/platform, parameter grid, threshold/prefactor assumptions, run duration, and one result per physical-error-rate × T-gate-count pair. A reported distance of `61` is a sentinel meaning the search found no solution for odd distances `3..59`; the associated qubit count is a cap reference, not a validated minimum. The analytical model is only predictive below its configured 1% threshold. Resource API controls are restricted to 0.1–0.9%; the separate runtime endpoint marks out-of-domain inputs explicitly.
+The JSON manifest records the code revision, Python/platform, parameter grid, threshold/prefactor assumptions, run duration, and one result per physical-error-rate × T-gate-count pair. A reported distance of `61` is a sentinel meaning the search found no solution for odd distances `3..59`; the associated qubit count is a cap reference, not a validated minimum. The analytical model is only predictive below its configured 1% threshold. The resource UI slider is restricted to 0.1–0.9%; the API accepts 0.01–0.9%. The separate runtime endpoint marks out-of-domain inputs explicitly.
 
 
 ### CI resource-sweep snapshot
