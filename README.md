@@ -132,3 +132,19 @@ python -m qec.resource_sweep --output resource-sweep.json
 ```
 
 The JSON manifest records the code revision, Python/platform, parameter grid, threshold/prefactor assumptions, run duration, and one result per physical-error-rate × T-gate-count pair. A reported distance of `61` is a sentinel meaning the search found no solution for odd distances `3..59`; the associated qubit count is a cap reference, not a validated minimum. The analytical model is only predictive below its configured 1% threshold. Resource API controls are restricted to 0.1–0.9%; the separate runtime endpoint marks out-of-domain inputs explicitly.
+
+
+### CI resource-sweep snapshot
+
+The full 18-case analytical grid was executed in CI with `n_logical=3000` and a total failure budget of 0.5. The rows below show the 3-billion-T-gate scenario; values are outputs of this simplified model, not hardware measurements.
+
+| Physical error rate | Reported distance | Physical qubits at reported distance | Search cap exceeded? |
+|---:|---:|---:|---|
+| 0.05% | 13 | 1,014,000 | No |
+| 0.1% | 17 | 1,734,000 | No |
+| 0.2% | 25 | 3,750,000 | No |
+| 0.5% | 59 | 20,886,000 | No |
+| 0.7% | 61 (sentinel) | 22,326,000 (cap reference) | Yes |
+| 0.9% | 61 (sentinel) | 22,326,000 (cap reference) | Yes |
+
+The cap rows mean the target was not met for any tested odd distance from 3 through 59. They must not be interpreted as a proven minimum-qubit design.
