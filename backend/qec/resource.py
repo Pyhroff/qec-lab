@@ -29,8 +29,10 @@ _A = 0.1  # pre-factor — empirically calibrated for surface codes
 
 
 def _validate_probability(value: float, name: str, *, allow_zero: bool = True) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number")
     lower_ok = value >= 0 if allow_zero else value > 0
-    if not isinstance(value, (int, float)) or not math.isfinite(value) or not lower_ok or value > 1:
+    if not lower_ok or value > 1:
         lower = "0" if allow_zero else "greater than 0"
         raise ValueError(f"{name} must be {lower} and at most 1")
 
