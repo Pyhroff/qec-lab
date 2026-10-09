@@ -101,3 +101,32 @@ def test_api_cors_has_explicit_local_allowlist():
     assert cors.kwargs["allow_methods"] == ["GET", "POST"]
     assert cors.kwargs["allow_headers"] == ["Content-Type"]
     assert "*" not in cors.kwargs["allow_origins"]
+
+
+
+def test_resource_sweep_records_reproducible_parameters_and_model_limits():
+    from qec.resource_sweep import build_sweep_report
+
+    report = build_sweep_report(
+        p_values=[0.001, 0.005],
+        t_gate_counts=[1000, 100000],
+        n_logical=100,
+        p_total_failure=0.5,
+        code_revision="test-revision",
+    )
+    assert report["schema_version"] == "1.0"
+    assert report["code_revision"] == "test-revision"
+    assert report["measurement_type"] == "analytical_model_sweep_not_hardware_measurement"
+    assert report["result_count"] == 4
+    assert len(report["results"]) == 4
+    assert report["model"]["distance_cap_sentinel"] == 61
+    assert all("distance_cap_exceeded" in row for row in report["results"])
+
+
+def test_resource_sweep_rejects_threshold_and_empty_grids():
+    from qec.resource_sweep import build_sweep_report
+
+    with pytest.raises(ValueError):
+        build_sweep_report(p_values=[0.01], t_gate_counts=[1000])
+    with pytest.raises(ValueError):
+        build_sweep_report(p_values=[], t_gate_counts=[1000])
