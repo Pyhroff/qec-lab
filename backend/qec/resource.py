@@ -1,44 +1,36 @@
 """
 Physical qubit resource estimator for fault-tolerant RSA-2048 factoring.
 
-Uses a surface-code logical error rate model and adjustable algorithmic parameters.
-The Mosca-style panel computes required code distance and total physical qubit count.
-
-Reference estimates (all assume p ~ 0.1% physical error rate):
-  Gidney & Ekera 2019  : ~20 million physical qubits  (arXiv:1905.09749)
-  Gidney 2025          : < 1 million physical qubits  (arXiv:2505.15917)
-  Heterogeneous 2026   : ~100 thousand physical qubits (arXiv:2604.06319 / Feb 2026)
-
-The improvement across estimates comes from:
-  - Approximate residue arithmetic (2025)
-  - Yoked surface codes for idle qubit storage (2025)
-  - Magic state cultivation vs distillation (2025)
-  - Novel architectural layouts (2026)
-
-This estimator uses the 2025 algorithmic T-count as its default.
+This is an illustrative surface-code model, not a hardware forecast. When the
+distance search reaches its cap, the returned d=61 value is a sentinel and the
+result is explicitly marked infeasible rather than silently treated as a valid
+resource estimate.
 """
 
 import math
 
-
-# Approximate logical error rate for a surface code of distance d
-# at physical error rate p, using the standard threshold approximation.
-# p_th ~ 1% is well-established for circuit-level noise; we use 0.01.
 _P_TH = 0.01
-_A = 0.1  # pre-factor — empirically calibrated for surface codes
+_A = 0.1
+_MAX_DISTANCE = 59
 
 
 def logical_error_rate(p: float, d: int) -> float:
-    """p_L ≈ A * (p / p_th)^((d+1)/2)"""
+    """Approximate p_L ≈ A * (p / p_th)^((d+1)/2)."""
+    if not math.isfinite(p) or not 0 <= p <= 1:
+        raise ValueError("physical error rate p must be finite and in [0, 1]")
+    if isinstance(d, bool) or not isinstance(d, int) or d < 3 or d % 2 == 0:
+        raise ValueError("code distance d must be an odd integer >= 3")
     return _A * (p / _P_TH) ** ((d + 1) / 2)
 
 
 def min_distance(p: float, p_L_per_gate: float) -> int:
-    """Smallest odd d >= 3 such that p_L(p, d) < p_L_per_gate."""
-    for d in range(3, 61, 2):
+    """Return the smallest odd d >= 3 meeting the target, or 61 if capped."""
+    if not math.isfinite(p_L_per_gate) or not 0 < p_L_per_gate < 1:
+        raise ValueError("p_L_per_gate must be finite and strictly between 0 and 1")
+    for d in range(3, _MAX_DISTANCE + 1, 2):
         if logical_error_rate(p, d) < p_L_per_gate:
             return d
-    return 61   # above d=60 — system is too noisy
+    return _MAX_DISTANCE + 2
 
 
 def estimate(
@@ -47,37 +39,31 @@ def estimate(
     t_gates: int = 3_000_000_000,
     p_total_failure: float = 0.5,
 ) -> dict:
-    """
-    Estimate physical qubit count for fault-tolerant Shor factoring of RSA-2048.
+    """Estimate physical qubits using a simplified surface-code model.
 
-    Parameters
-    ----------
-    p_physical      : physical gate error rate (e.g. 0.001 = 0.1%)
-    n_logical       : number of logical qubits needed (default: ~3000, from Gidney 2025)
-    t_gates         : total T-gate count for Shor's algorithm (Gidney 2025: ~3e9, reduced from 2019)
-    p_total_failure : acceptable total failure probability (default 50% — maximally lenient)
-
-    Returns
-    -------
-    dict with:
-      d               : required surface code distance
-      p_L_per_gate    : required logical error rate per T gate
-      p_L_achieved    : actual logical error rate at chosen d
-      phys_per_logical: 2*d^2 physical qubits per logical qubit (rotated surface code)
-      total_physical  : n_logical * phys_per_logical
-      feasible        : bool — True if total < 10 million
-      references      : {label: qubit_count} dict of published estimates
+    If no supported distance meets the per-gate failure budget, the result is
+    explicitly marked infeasible. Counts then describe the distance-cap
+    scenario, not a claim that the target failure probability is achievable.
     """
-    # Target per-gate failure budget
+    if not math.isfinite(p_physical) or not 0 < p_physical <= 1:
+        raise ValueError("p_physical must be finite and in (0, 1]")
+    if isinstance(n_logical, bool) or not isinstance(n_logical, int) or n_logical < 1:
+        raise ValueError("n_logical must be a positive integer")
+    if isinstance(t_gates, bool) or not isinstance(t_gates, int) or t_gates < 1:
+        raise ValueError("t_gates must be a positive integer")
+    if not math.isfinite(p_total_failure) or not 0 < p_total_failure < 1:
+        raise ValueError("p_total_failure must be finite and strictly between 0 and 1")
+
     p_L_per_gate = p_total_failure / t_gates
-
     d = min_distance(p_physical, p_L_per_gate)
-    phys_per_logical = 2 * d * d
+    distance_limit_reached = d > _MAX_DISTANCE
+    modeled_d = _MAX_DISTANCE if distance_limit_reached else d
+    phys_per_logical = 2 * modeled_d * modeled_d
     total = n_logical * phys_per_logical
-    p_L = logical_error_rate(p_physical, d)
+    p_L = logical_error_rate(p_physical, modeled_d)
 
     return {
-        "d": d,
+        "d": modeled_d,
         "p_physical": p_physical,
         "n_logical": n_logical,
         "t_gates": t_gates,
@@ -85,7 +71,14 @@ def estimate(
         "p_L_achieved": p_L,
         "phys_per_logical": phys_per_logical,
         "total_physical": total,
-        "feasible": total < 10_000_000,
+        "feasible": not distance_limit_reached and total < 10_000_000,
+        "distance_limit_reached": distance_limit_reached,
+        "feasibility_note": (
+            "Target failure budget was not met at any supported code distance; "
+            "resource counts show the distance-cap scenario only."
+            if distance_limit_reached
+            else "Target failure budget met by the simplified model."
+        ),
         "references": {
             "Gidney & Ekera 2019 (arXiv:1905.09749)": 20_000_000,
             "Gidney 2025 (arXiv:2505.15917)": 1_000_000,
