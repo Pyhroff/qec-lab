@@ -16,7 +16,7 @@ _MAX_DISTANCE = 59
 
 def logical_error_rate(p: float, d: int) -> float:
     """Approximate p_L ≈ A * (p / p_th)^((d+1)/2)."""
-    if not math.isfinite(p) or not 0 <= p <= 1:
+    if isinstance(p, bool) or not isinstance(p, (int, float)) or not math.isfinite(p) or not 0 <= p <= 1:
         raise ValueError("physical error rate p must be finite and in [0, 1]")
     if isinstance(d, bool) or not isinstance(d, int) or d < 3 or d % 2 == 0:
         raise ValueError("code distance d must be an odd integer >= 3")
@@ -25,7 +25,12 @@ def logical_error_rate(p: float, d: int) -> float:
 
 def min_distance(p: float, p_L_per_gate: float) -> int:
     """Return the smallest odd d >= 3 meeting the target, or 61 if capped."""
-    if not math.isfinite(p_L_per_gate) or not 0 < p_L_per_gate < 1:
+    if (
+        isinstance(p_L_per_gate, bool)
+        or not isinstance(p_L_per_gate, (int, float))
+        or not math.isfinite(p_L_per_gate)
+        or not 0 < p_L_per_gate < 1
+    ):
         raise ValueError("p_L_per_gate must be finite and strictly between 0 and 1")
     for d in range(3, _MAX_DISTANCE + 1, 2):
         if logical_error_rate(p, d) < p_L_per_gate:
@@ -45,13 +50,23 @@ def estimate(
     explicitly marked infeasible. Counts then describe the distance-cap
     scenario, not a claim that the target failure probability is achievable.
     """
-    if not math.isfinite(p_physical) or not 0 < p_physical <= 1:
+    if (
+        isinstance(p_physical, bool)
+        or not isinstance(p_physical, (int, float))
+        or not math.isfinite(p_physical)
+        or not 0 < p_physical <= 1
+    ):
         raise ValueError("p_physical must be finite and in (0, 1]")
     if isinstance(n_logical, bool) or not isinstance(n_logical, int) or n_logical < 1:
         raise ValueError("n_logical must be a positive integer")
     if isinstance(t_gates, bool) or not isinstance(t_gates, int) or t_gates < 1:
         raise ValueError("t_gates must be a positive integer")
-    if not math.isfinite(p_total_failure) or not 0 < p_total_failure < 1:
+    if (
+        isinstance(p_total_failure, bool)
+        or not isinstance(p_total_failure, (int, float))
+        or not math.isfinite(p_total_failure)
+        or not 0 < p_total_failure < 1
+    ):
         raise ValueError("p_total_failure must be finite and strictly between 0 and 1")
 
     p_L_per_gate = p_total_failure / t_gates
