@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -13,11 +15,20 @@ from qec import (
 
 app = FastAPI(title="QEC Lab API")
 
+_allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "QEC_LAB_ALLOWED_ORIGINS",
+        "http://localhost:8080,http://127.0.0.1:8080",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -52,11 +63,47 @@ def threshold_endpoint(shots: int = Query(600, ge=100, le=2000)):
 
 @app.get("/api/resource")
 def resource_endpoint(
-    p: float = Query(0.001, ge=1e-4, le=0.05),
+    p: float = Query(0.001, ge=1e-4, le=0.009),
     n_logical: int = Query(3000, ge=100, le=20000),
     t_gates: int = Query(3_000_000_000, ge=1_000_000),
 ):
+    """Return below-threshold estimates only; use /api/run for explicit domain flags."""
     return estimate(p_physical=p, n_logical=n_logical, t_gates=t_gates)
+
+
+# ── resource-estimator scenario uncertainty ───────────────────────────────────
+
+@app.get("/api/resource/uncertainty")
+def resource_uncertainty_endpoint(
+    samples: int = Query(1000, ge=1, le=20000),
+    seed: int = Query(20261010),
+    p_min: float = Query(0.0005, ge=0.0, le=0.009999),
+    p_max: float = Query(0.005, ge=0.0, le=0.009999),
+    n_logical_min: int = Query(1000, ge=1, le=20000),
+    n_logical_max: int = Query(5000, ge=1, le=20000),
+    t_gates_min: int = Query(1_000_000_000, ge=1),
+    t_gates_max: int = Query(5_000_000_000, ge=1),
+    p_total_failure_min: float = Query(0.1, gt=0.0, le=1.0),
+    p_total_failure_max: float = Query(0.9, gt=0.0, le=1.0),
+):
+    """Return scenario-spread summaries, not empirical confidence intervals."""
+    from qec.uncertainty import monte_carlo_resource_scenarios
+    try:
+        return monte_carlo_resource_scenarios(
+            samples=samples,
+            seed=seed,
+            p_min=p_min,
+            p_max=p_max,
+            n_logical_min=n_logical_min,
+            n_logical_max=n_logical_max,
+            t_gates_min=t_gates_min,
+            t_gates_max=t_gates_max,
+            p_total_failure_min=p_total_failure_min,
+            p_total_failure_max=p_total_failure_max,
+        )
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ── lattice surgery ───────────────────────────────────────────────────────────

@@ -28,13 +28,38 @@ _P_TH = 0.01
 _A = 0.1  # pre-factor — empirically calibrated for surface codes
 
 
+def _validate_probability(value: float, name: str, *, allow_zero: bool = True) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number")
+    lower_ok = value >= 0 if allow_zero else value > 0
+    if not lower_ok or value > 1:
+        lower = "0" if allow_zero else "greater than 0"
+        raise ValueError(f"{name} must be {lower} and at most 1")
+
+
 def logical_error_rate(p: float, d: int) -> float:
-    """p_L ≈ A * (p / p_th)^((d+1)/2)"""
-    return _A * (p / _P_TH) ** ((d + 1) / 2)
+    """Approximate p_L below threshold; saturate to 1 outside model domain.
+
+    The formula is only predictive for physical error rates below _P_TH.
+    At or above threshold, 1.0 is a conservative sentinel, not a hardware estimate.
+    """
+    _validate_probability(p, "p")
+    if not isinstance(d, int) or d < 3 or d % 2 == 0:
+        raise ValueError("d must be an odd integer >= 3")
+    if p == 0:
+        return 0.0
+    # The below-threshold approximation must not be extrapolated above p_th.
+    # Return a saturated sentinel so callers never receive an impossible
+    # probability > 1; estimate() separately marks the result out of domain.
+    if p >= _P_TH:
+        return 1.0
+    return min(1.0, _A * (p / _P_TH) ** ((d + 1) / 2))
 
 
 def min_distance(p: float, p_L_per_gate: float) -> int:
-    """Smallest odd d >= 3 such that p_L(p, d) < p_L_per_gate."""
+    """Smallest odd d >= 3 meeting the target, or 61 if the cap is exceeded."""
+    _validate_probability(p, "p")
+    _validate_probability(p_L_per_gate, "p_L_per_gate", allow_zero=False)
     for d in range(3, 61, 2):
         if logical_error_rate(p, d) < p_L_per_gate:
             return d
@@ -68,6 +93,13 @@ def estimate(
       feasible        : bool — True if total < 10 million
       references      : {label: qubit_count} dict of published estimates
     """
+    _validate_probability(p_physical, "p_physical")
+    if isinstance(n_logical, bool) or not isinstance(n_logical, int) or n_logical < 1:
+        raise ValueError("n_logical must be a positive integer")
+    if isinstance(t_gates, bool) or not isinstance(t_gates, int) or t_gates < 1:
+        raise ValueError("t_gates must be a positive integer")
+    _validate_probability(p_total_failure, "p_total_failure", allow_zero=False)
+
     # Target per-gate failure budget
     p_L_per_gate = p_total_failure / t_gates
 
@@ -85,7 +117,11 @@ def estimate(
         "p_L_achieved": p_L,
         "phys_per_logical": phys_per_logical,
         "total_physical": total,
-        "feasible": total < 10_000_000,
+        "feasible": total < 10_000_000 and p_physical < _P_TH and d != 61,
+        "model_domain_valid": p_physical < _P_TH,
+        "distance_cap_exceeded": d == 61,
+        "target_met_within_search_cap": d != 61,
+        "total_physical_is_cap_reference": d == 61,
         "references": {
             "Gidney & Ekera 2019 (arXiv:1905.09749)": 20_000_000,
             "Gidney 2025 (arXiv:2505.15917)": 1_000_000,

@@ -6,6 +6,8 @@
 ![Stim](https://img.shields.io/badge/Stim-1.16-purple)
 ![PyMatching v2](https://img.shields.io/badge/PyMatching-v2-green)
 
+This is an educational simulator, not a validated forecast of quantum hardware capabilities or a cryptographic break-time prediction. Resource estimates are assumption-sensitive; cite the source papers and report model assumptions when interpreting them.
+
 This is the second half of a two-project arc. The first half - [Quantum Collapse](https://github.com/Pyhroff/quantum-collapse) - simulates what happens when a cryptographically relevant quantum computer breaks RSA: cascading infrastructure failure across banks, CAs, cloud providers, and government systems. It's the "what breaks" story.
 
 Quantum OS is the "how and when" story. It simulates the fault-tolerant quantum computer that would actually do that: a surface code engine running real MWPM decoding, lattice surgery primitives, and a physical resource estimator grounded in current literature. The gap between "cryptographically relevant QC" and today's hardware is mostly an error correction problem, and this is what that problem looks like under the hood.
@@ -40,7 +42,7 @@ pip install -r requirements.txt
 uvicorn server:app --port 8001 --reload
 ```
 
-Then open `frontend/index.html` directly in a browser. No build step, no bundler, just a file open. The page connects to `http://localhost:8001`.
+In a second terminal from the repository root, run `python -m http.server 8080`, then open `http://localhost:8080/frontend/`. The UI connects to `http://localhost:8001`. The API allows these local origins by default; set `QEC_LAB_ALLOWED_ORIGINS` to a comma-separated origin allowlist for a different local setup. Do not expose the development server to untrusted networks.
 
 If you just want to see some numbers without the UI:
 
@@ -70,6 +72,18 @@ docs/
 ```
 
 ---
+
+## Scenario uncertainty analysis
+
+The API endpoint `GET /api/resource/uncertainty` runs a seeded Monte Carlo sweep over explicitly supplied ranges for physical error rate, logical-qubit count, T-gate count, and total failure budget. It reports p05/p50/p95, mean, sample standard deviation, and rates for cap-exceeded, model-domain-valid, and feasible scenarios.
+
+Example:
+
+```bash
+curl 'http://localhost:8001/api/resource/uncertainty?samples=1000&seed=20261010&p_min=0.0005&p_max=0.005&n_logical_min=1000&n_logical_max=5000&t_gates_min=1000000000&t_gates_max=5000000000'
+```
+
+**Interpretation:** this is a distribution of outputs under user-chosen input ranges, not a calibrated probability distribution for future hardware and not an empirical confidence interval. The default uniform sampling policy is an exploratory sensitivity choice; the model still uses its fixed analytical surface-code approximation and omits architecture-specific overhead. Record the ranges and seed when comparing reports.
 
 ## API
 
@@ -112,3 +126,37 @@ Phenomenological noise is the middle ground: data errors plus measurement flip p
 ---
 
 MIT license.
+
+
+## Validation and scientific limitations
+
+CI checks deterministic invariants for surface-code geometry, seeded noisy-shot reproducibility, probability and resource-input validation, monotonic behavior of the simplified logical-error approximation below its configured threshold, and explicit local CORS policy. These tests establish implementation consistency, not empirical calibration against a hardware backend.
+
+The resource estimator is a simplified analytical model. Its outputs depend on assumptions such as the logical-error approximation, threshold, prefactor, code distance cap, algorithmic gate counts, and accepted total failure budget. Treat the result as a reproducible scenario estimate—not a benchmark of a specific quantum processor or a guarantee that RSA-2048 factoring is feasible. When comparing runs, record all inputs and the code revision; published resource estimates can differ substantially because their architectures and arithmetic assumptions differ.
+
+
+## Reproducible resource sweep
+
+From `backend/`, run:
+
+```bash
+python -m qec.resource_sweep --output resource-sweep.json
+```
+
+The JSON manifest records the code revision, Python/platform, parameter grid, threshold/prefactor assumptions, run duration, and one result per physical-error-rate × T-gate-count pair. A reported distance of `61` is a sentinel meaning the search found no solution for odd distances `3..59`; the associated qubit count is a cap reference, not a validated minimum. The analytical model is only predictive below its configured 1% threshold. The resource UI slider is restricted to 0.1–0.9%; the API accepts 0.01–0.9%. The separate runtime endpoint marks out-of-domain inputs explicitly.
+
+
+### CI resource-sweep snapshot
+
+The full 18-case analytical grid was executed in CI with `n_logical=3000` and a total failure budget of 0.5. The rows below show the 3-billion-T-gate scenario; values are outputs of this simplified model, not hardware measurements.
+
+| Physical error rate | Reported distance | Physical qubits at reported distance | Under 10M cutoff? | Search cap exceeded? |
+|---:|---:|---:|---|---|
+| 0.05% | 13 | 1,014,000 | Yes | No |
+| 0.1% | 17 | 1,734,000 | Yes | No |
+| 0.2% | 25 | 3,750,000 | Yes | No |
+| 0.5% | 59 | 20,886,000 | No | No |
+| 0.7% | 61 (sentinel) | 22,326,000 (cap reference) | No | Yes |
+| 0.9% | 61 (sentinel) | 22,326,000 (cap reference) | No | Yes |
+
+The cap rows mean the target was not met for any tested odd distance from 3 through 59. They must not be interpreted as a proven minimum-qubit design.
