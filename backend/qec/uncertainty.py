@@ -103,8 +103,28 @@ def monte_carlo_resource_scenarios(
             "feasible": result["feasible"],
         })
 
+    # Keep the full input-sensitivity distribution for compatibility, but
+    # separately report only rows where the estimator found a solution inside
+    # its declared domain and distance-search cap. A capped sentinel is not a
+    # validated minimum and must not be mistaken for one in quantile summaries.
+    valid_rows = [
+        row for row in rows
+        if row["model_domain_valid"] and not row["distance_cap_exceeded"]
+    ]
+    valid_results = {
+        "sample_count": len(valid_rows),
+        "total_physical": _distribution([row["total_physical"] for row in valid_rows])
+        if valid_rows else None,
+        "reported_distance": _distribution([row["reported_distance"] for row in valid_rows])
+        if valid_rows else None,
+        "interpretation": (
+            "Conditional distribution for samples inside the model domain where a solution "
+            "was found within the distance-search cap; not a hardware prediction."
+        ),
+    }
+
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "experiment": "qec-lab-resource-estimator-monte-carlo-scenarios",
         "measurement_type": "monte_carlo_scenario_sweep_not_empirical_uncertainty",
         "sample_count": samples,
@@ -122,7 +142,9 @@ def monte_carlo_resource_scenarios(
         "results": {
             "total_physical": _distribution([r["total_physical"] for r in rows]),
             "reported_distance": _distribution([r["reported_distance"] for r in rows]),
+            "full_distribution_includes_distance_cap_reference_values": True,
         },
+        "results_within_search_cap": valid_results,
         "rates": {
             "distance_cap_exceeded": sum(r["distance_cap_exceeded"] for r in rows) / samples,
             "model_domain_valid": sum(r["model_domain_valid"] for r in rows) / samples,
