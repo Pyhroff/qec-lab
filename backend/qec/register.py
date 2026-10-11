@@ -6,12 +6,27 @@ Physical qubit count: N×M × 2d² (rotated surface code, one patch per logical 
 
 This models the idle register between gates — no inter-patch surgery.
 """
+import math
 import random
 
 from .simulator import run_shot
 
 
+def _validate_register_inputs(n: int, m: int, d: int, p: float, seed: int | None) -> None:
+    """Reject invalid register dimensions and noise parameters before simulation."""
+    for name, value in (("n", n), ("m", m)):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"{name} must be a positive integer")
+    if isinstance(d, bool) or not isinstance(d, int) or d < 3 or d % 2 == 0:
+        raise ValueError("d must be an odd integer greater than or equal to 3")
+    if isinstance(p, bool) or not isinstance(p, (int, float)) or not math.isfinite(p) or not 0 <= p <= 1:
+        raise ValueError("p must be a finite probability between 0 and 1")
+    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int)):
+        raise ValueError("seed must be an integer or None")
+
+
 def run_register(n: int, m: int, d: int, p: float, seed: int | None = None) -> dict:
+    _validate_register_inputs(n, m, d, p, seed)
     rng = random.Random(seed)
     patches = []
     logical_errors = 0
