@@ -50,6 +50,10 @@ class RunReport:
     phys_per_logical: int
     total_physical:   int
     feasible:         bool
+    model_domain_valid: bool
+    distance_cap_exceeded: bool
+    target_met_within_search_cap: bool
+    total_physical_is_cap_reference: bool
 
     # runtime estimate
     physical_cycles: int    # circuit_depth × d (QEC rounds per logical cycle)
@@ -122,6 +126,9 @@ def run(
             "d":             sr["d"],
             "total_physical": sr["total_physical"],
             "feasible":      sr["feasible"],
+            "model_domain_valid": sr["model_domain_valid"],
+            "distance_cap_exceeded": sr["distance_cap_exceeded"],
+            "target_met_within_search_cap": sr["target_met_within_search_cap"],
         })
 
     # Validation factor vs nearest published benchmark
@@ -129,7 +136,9 @@ def run(
     nonzero = [v for v in references.values() if v > 0]
     nearest = min(nonzero, key=lambda v: abs(v - res["total_physical"])) if nonzero else None
     within_factor = (
-        round(res["total_physical"] / nearest, 2) if nearest and nearest > 0 else None
+        round(res["total_physical"] / nearest, 2)
+        if nearest and nearest > 0 and res["model_domain_valid"] and not res["distance_cap_exceeded"]
+        else None
     )
 
     return RunReport(
@@ -149,6 +158,10 @@ def run(
         phys_per_logical = res["phys_per_logical"],
         total_physical   = res["total_physical"],
         feasible         = res["feasible"],
+        model_domain_valid = res["model_domain_valid"],
+        distance_cap_exceeded = res["distance_cap_exceeded"],
+        target_met_within_search_cap = res["target_met_within_search_cap"],
+        total_physical_is_cap_reference = res["total_physical_is_cap_reference"],
 
         physical_cycles = physical_cycles,
         runtime_us      = runtime_us,
