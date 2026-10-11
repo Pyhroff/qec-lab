@@ -8,9 +8,16 @@ def test_logical_error_rate_rejects_invalid_code_distance():
         logical_error_rate(0.001, 4)
 
 
-def test_min_distance_rejects_invalid_failure_budget():
+@pytest.mark.parametrize("target", [0.0, True, float("nan"), "0.1"])
+def test_min_distance_rejects_invalid_failure_budget(target):
     with pytest.raises(ValueError):
-        min_distance(0.001, 0.0)
+        min_distance(0.001, target)
+
+
+@pytest.mark.parametrize("physical_rate", [True, float("nan"), "0.001"])
+def test_logical_error_rate_rejects_invalid_physical_rate(physical_rate):
+    with pytest.raises(ValueError):
+        logical_error_rate(physical_rate, 3)
 
 
 def test_estimator_marks_distance_cap_as_infeasible():
@@ -34,9 +41,12 @@ def test_estimator_default_scenario_meets_distance_search():
     [
         {"p_physical": 0.0},
         {"p_physical": float("nan")},
+        {"p_physical": True},
+        {"p_physical": "0.001"},
         {"p_physical": 0.001, "n_logical": 0},
         {"p_physical": 0.001, "t_gates": 0},
         {"p_physical": 0.001, "p_total_failure": 1.0},
+        {"p_physical": 0.001, "p_total_failure": True},
     ],
 )
 def test_estimator_rejects_invalid_inputs(kwargs):
