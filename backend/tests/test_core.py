@@ -237,3 +237,20 @@ def test_runtime_propagates_resource_model_domain_flags():
     assert report["feasible"] is False
     assert report["within_factor"] is None
     assert all("model_domain_valid" in row for row in report["sensitivity"])
+
+
+def test_resource_cap_uses_supported_distance_for_reference_counts():
+    result = estimate(p_physical=0.05, n_logical=100, t_gates=1_000_000)
+
+    assert result["d"] == 61  # compatibility sentinel, not a physical distance
+    assert result["modeled_distance"] == 59
+    assert result["distance_limit_reached"] is True
+    assert result["phys_per_logical"] == 2 * 59 * 59
+    assert result["total_physical"] == 100 * 2 * 59 * 59
+    assert result["feasible"] is False
+    assert "cap-reference" in result["feasibility_note"]
+
+
+def test_min_distance_rejects_unit_failure_target():
+    with pytest.raises(ValueError):
+        min_distance(0.001, 1.0)
