@@ -149,6 +149,40 @@ def test_monte_carlo_resource_scenarios_reject_invalid_ranges(kwargs):
         monte_carlo_resource_scenarios(**kwargs)
 
 
+
+
+def test_monte_carlo_separates_cap_sentinels_from_valid_resource_quantiles(monkeypatch):
+    import qec.uncertainty as uncertainty
+
+    def capped_estimate(**kwargs):
+        return {
+            "total_physical": 7442,
+            "d": 61,
+            "distance_cap_exceeded": True,
+            "model_domain_valid": True,
+            "feasible": False,
+        }
+
+    monkeypatch.setattr(uncertainty, "estimate", capped_estimate)
+    report = uncertainty.monte_carlo_resource_scenarios(
+        samples=3,
+        seed=11,
+        p_min=0.001,
+        p_max=0.002,
+        n_logical_min=100,
+        n_logical_max=100,
+        t_gates_min=1000,
+        t_gates_max=1000,
+        p_total_failure_min=0.5,
+        p_total_failure_max=0.5,
+    )
+    assert report["schema_version"] == "1.1"
+    assert report["results"]["full_distribution_includes_distance_cap_reference_values"] is True
+    assert report["results_within_search_cap"]["sample_count"] == 0
+    assert report["results_within_search_cap"]["total_physical"] is None
+    assert report["results_within_search_cap"]["reported_distance"] is None
+    assert report["rates"]["distance_cap_exceeded"] == 1.0
+
 def test_resource_uncertainty_api_is_registered():
     from server import app
 
