@@ -26,6 +26,7 @@ import math
 # p_th ~ 1% is well-established for circuit-level noise; we use 0.01.
 _P_TH = 0.01
 _A = 0.1  # pre-factor — empirically calibrated for surface codes
+_MAX_DISTANCE = 59
 
 
 def _validate_probability(value: float, name: str, *, allow_zero: bool = True) -> None:
@@ -44,7 +45,7 @@ def logical_error_rate(p: float, d: int) -> float:
     At or above threshold, 1.0 is a conservative sentinel, not a hardware estimate.
     """
     _validate_probability(p, "p")
-    if not isinstance(d, int) or d < 3 or d % 2 == 0:
+    if isinstance(d, bool) or not isinstance(d, int) or d < 3 or d % 2 == 0:
         raise ValueError("d must be an odd integer >= 3")
     if p == 0:
         return 0.0
@@ -57,13 +58,15 @@ def logical_error_rate(p: float, d: int) -> float:
 
 
 def min_distance(p: float, p_L_per_gate: float) -> int:
-    """Smallest odd d >= 3 meeting the target, or 61 if the cap is exceeded."""
+    """Smallest supported odd d meeting the target; 61 is the cap sentinel."""
     _validate_probability(p, "p")
     _validate_probability(p_L_per_gate, "p_L_per_gate", allow_zero=False)
-    for d in range(3, 61, 2):
+    if p_L_per_gate >= 1:
+        raise ValueError("p_L_per_gate must be strictly less than 1")
+    for d in range(3, _MAX_DISTANCE + 1, 2):
         if logical_error_rate(p, d) < p_L_per_gate:
             return d
-    return 61   # above d=60 — system is too noisy
+    return _MAX_DISTANCE + 2
 
 
 def estimate(
@@ -104,12 +107,18 @@ def estimate(
     p_L_per_gate = p_total_failure / t_gates
 
     d = min_distance(p_physical, p_L_per_gate)
-    phys_per_logical = 2 * d * d
+    distance_cap_exceeded = d > _MAX_DISTANCE
+    # Keep d=61 as the existing API sentinel, but never use it as a physical
+    # code distance when calculating the illustrative cap-reference count.
+    modeled_distance = _MAX_DISTANCE if distance_cap_exceeded else d
+    phys_per_logical = 2 * modeled_distance * modeled_distance
     total = n_logical * phys_per_logical
-    p_L = logical_error_rate(p_physical, d)
+    p_L = logical_error_rate(p_physical, modeled_distance)
 
     return {
         "d": d,
+        "modeled_distance": modeled_distance,
+        "distance_limit_reached": distance_cap_exceeded,
         "p_physical": p_physical,
         "n_logical": n_logical,
         "t_gates": t_gates,
@@ -117,11 +126,17 @@ def estimate(
         "p_L_achieved": p_L,
         "phys_per_logical": phys_per_logical,
         "total_physical": total,
-        "feasible": total < 10_000_000 and p_physical < _P_TH and d != 61,
+        "feasible": total < 10_000_000 and p_physical < _P_TH and not distance_cap_exceeded,
         "model_domain_valid": p_physical < _P_TH,
-        "distance_cap_exceeded": d == 61,
-        "target_met_within_search_cap": d != 61,
-        "total_physical_is_cap_reference": d == 61,
+        "distance_cap_exceeded": distance_cap_exceeded,
+        "target_met_within_search_cap": not distance_cap_exceeded,
+        "total_physical_is_cap_reference": distance_cap_exceeded,
+        "feasibility_note": (
+            "Target failure budget was not met within the supported distance cap; "
+            "physical counts are illustrative cap-reference values only."
+            if distance_cap_exceeded
+            else "Target failure budget met by the simplified model."
+        ),
         "references": {
             "Gidney & Ekera 2019 (arXiv:1905.09749)": 20_000_000,
             "Gidney 2025 (arXiv:2505.15917)": 1_000_000,
