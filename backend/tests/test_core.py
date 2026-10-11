@@ -149,40 +149,6 @@ def test_monte_carlo_resource_scenarios_reject_invalid_ranges(kwargs):
         monte_carlo_resource_scenarios(**kwargs)
 
 
-
-
-def test_monte_carlo_separates_cap_sentinels_from_valid_resource_quantiles(monkeypatch):
-    import qec.uncertainty as uncertainty
-
-    def capped_estimate(**kwargs):
-        return {
-            "total_physical": 7442,
-            "d": 61,
-            "distance_cap_exceeded": True,
-            "model_domain_valid": True,
-            "feasible": False,
-        }
-
-    monkeypatch.setattr(uncertainty, "estimate", capped_estimate)
-    report = uncertainty.monte_carlo_resource_scenarios(
-        samples=3,
-        seed=11,
-        p_min=0.001,
-        p_max=0.002,
-        n_logical_min=100,
-        n_logical_max=100,
-        t_gates_min=1000,
-        t_gates_max=1000,
-        p_total_failure_min=0.5,
-        p_total_failure_max=0.5,
-    )
-    assert report["schema_version"] == "1.1"
-    assert report["results"]["full_distribution_includes_distance_cap_reference_values"] is True
-    assert report["results_within_search_cap"]["sample_count"] == 0
-    assert report["results_within_search_cap"]["total_physical"] is None
-    assert report["results_within_search_cap"]["reported_distance"] is None
-    assert report["rates"]["distance_cap_exceeded"] == 1.0
-
 def test_resource_uncertainty_api_is_registered():
     from server import app
 
@@ -237,6 +203,106 @@ def test_runtime_propagates_resource_model_domain_flags():
     assert report["feasible"] is False
     assert report["within_factor"] is None
     assert all("model_domain_valid" in row for row in report["sensitivity"])
+
+def _sample_quantum_collapse_bridge():
+    return {
+        "schema_version": "1.0",
+        "source": {"format": "SARIF", "version": "2.1.0", "tool": "pqc-scanner"},
+        "observed_evidence": {"finding_count": 2},
+        "modeled_scenario": {
+            "node_count": 2,
+            "edge_count": 0,
+            "nodes": [
+                {
+                    "id": "finding-0001",
+                    "crypto": "RSA",
+                    "evidence_file": "src/auth.py",
+                    "evidence_line": 12,
+                    "evidence_algorithm": "RSA",
+                },
+                {
+                    "id": "finding-0002",
+                    "crypto": "ECC-P256",
+                    "evidence_file": "src/exchange.py",
+                    "evidence_line": 30,
+                    "evidence_algorithm": "ECC/ECDSA/ECDH",
+                },
+            ],
+        },
+    }
+
+
+def test_scenario_bridge_estimates_only_rsa_nodes():
+    from qec.scenario_bridge import build_scenario_report
+
+    report = build_scenario_report(
+        _sample_quantum_collapse_bridge(),
+        p_physical=0.001,
+        n_logical=100,
+        t_gates=1_000_000,
+    )
+    assert report["measurement_type"] == "conditional_analytical_resource_estimate_not_hardware_measurement"
+    assert report["summary"]["supported_rsa_node_count"] == 1
+    assert report["summary"]["unsupported_node_count"] == 1
+    assert report["findings"][0]["status"] == "estimated"
+    assert report["findings"][0]["resource_estimate"]["n_logical"] == 100
+    assert report["findings"][1]["status"] == "unsupported_crypto_model"
+    assert report["findings"][1]["resource_estimate"] is None
+
+
+def test_scenario_bridge_rejects_unrecognized_contract():
+    from qec.scenario_bridge import build_scenario_report
+
+    with pytest.raises(ValueError, match="schema_version 1.0"):
+        build_scenario_report({"schema_version": "2.0"})
+
+
+def test_scenario_bridge_propagates_resource_model_domain_flags():
+    from qec.scenario_bridge import build_scenario_report
+
+    report = build_scenario_report(
+        _sample_quantum_collapse_bridge(),
+        p_physical=0.05,
+        n_logical=100,
+        t_gates=1_000_000,
+    )
+    rsa = report["findings"][0]["resource_estimate"]
+    assert rsa["model_domain_valid"] is False
+    assert rsa["distance_cap_exceeded"] is True
+    assert rsa["feasible"] is False
+
+
+def test_monte_carlo_separates_cap_sentinels_from_valid_resource_quantiles(monkeypatch):
+    import qec.uncertainty as uncertainty
+
+    def capped_estimate(**kwargs):
+        return {
+            "total_physical": 7442,
+            "d": 61,
+            "distance_cap_exceeded": True,
+            "model_domain_valid": True,
+            "feasible": False,
+        }
+
+    monkeypatch.setattr(uncertainty, "estimate", capped_estimate)
+    report = uncertainty.monte_carlo_resource_scenarios(
+        samples=3,
+        seed=11,
+        p_min=0.001,
+        p_max=0.002,
+        n_logical_min=100,
+        n_logical_max=100,
+        t_gates_min=1000,
+        t_gates_max=1000,
+        p_total_failure_min=0.5,
+        p_total_failure_max=0.5,
+    )
+    assert report["schema_version"] == "1.1"
+    assert report["results"]["full_distribution_includes_distance_cap_reference_values"] is True
+    assert report["results_within_search_cap"]["sample_count"] == 0
+    assert report["results_within_search_cap"]["total_physical"] is None
+    assert report["results_within_search_cap"]["reported_distance"] is None
+    assert report["rates"]["distance_cap_exceeded"] == 1.0
 
 
 def test_resource_cap_uses_supported_distance_for_reference_counts():

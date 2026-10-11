@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "format": "SARIF",
+    "version": "2.1.0",
+    "tool": "pqc-scanner"
+  },
+  "observed_evidence": {
+    "finding_count": 2,
+    "by_bucket": {
+      "quantum_broken": 2,
+      "classically_broken": 0,
+      "quantum_weakened": 0,
+      "other": 0
+    },
+    "findings": []
+  },
+  "modeled_scenario": {
+    "node_count": 2,
+    "edge_count": 0,
+    "finding_weighted_risk_score": 0.5,
+    "nodes": [
+      {
+        "id": "finding-0001",
+        "sector": "Scanned source finding",
+        "crypto": "RSA",
+        "criticality": 5,
+        "migration_pct": 0,
+        "evidence_file": "src/auth.py",
+        "evidence_line": 12,
+        "evidence_algorithm": "RSA",
+        "modeled_risk": 0.8
+      },
+      {
+        "id": "finding-0002",
+        "sector": "Scanned source finding",
+        "crypto": "ECC-P256",
+        "criticality": 5,
+        "migration_pct": 0,
+        "evidence_file": "src/exchange.py",
+        "evidence_line": 30,
+        "evidence_algorithm": "ECC/ECDSA/ECDH",
+        "modeled_risk": 0.8
+      }
+    ],
+    "unmapped_quantum_findings": [],
+    "assumptions": {
+      "migration_pct": 0,
+      "criticality_by_sarif_level": {
+        "error": 5,
+        "warning": 3,
+        "note": 1
+      },
+      "dependency_edges": "none inferred; scanner output does not establish dependency topology",
+      "risk_score": "mean of modeled risk for mapped quantum-broken findings only",
+      "risk_coefficients": "illustrative values from quantum_collapse.risk",
+      "limitations": "static findings do not prove runtime reachability or deployed usage"
+    }
+  }
+}
