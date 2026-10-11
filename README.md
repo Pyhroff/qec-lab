@@ -73,6 +73,32 @@ docs/
 
 ---
 
+## PQC evidence → QEC resource scenario bridge
+
+QEC Lab can consume the versioned scenario JSON produced by Quantum Collapse's
+PQC Scanner bridge. It retains the input finding references and runs the existing
+resource estimator **only for RSA findings**, because the current estimator models
+RSA-2048 factoring. ECC, DH, and DSA observations are preserved with an explicit
+`unsupported_crypto_model` status rather than being treated as RSA equivalents.
+
+From `backend/`:
+
+```bash
+python -m qec.scenario_bridge /path/to/scenario.json \
+  --p-physical 0.001 --n-logical 3000 --t-gates 3000000000 \
+  --p-total-failure 0.5 --output qec-resource-scenario.json
+```
+
+Each output labels itself `conditional_analytical_resource_estimate_not_hardware_measurement`.
+It carries the estimator's model-domain and distance-cap flags and documents that
+the result is assumption-sensitive, omits architecture-specific overhead, and does
+not prove source-code reachability, deployed use, or an attack timeline. Input
+scenario risk scores and dependency assumptions are not recomputed or treated as
+physical evidence.
+
+CI exercises this bridge using a small fixture containing one RSA and one ECC
+node; the fixture is a contract/regression test, not a benchmark result.
+
 ## Scenario uncertainty analysis
 
 The API endpoint `GET /api/resource/uncertainty` runs a seeded Monte Carlo sweep over explicitly supplied ranges for physical error rate, logical-qubit count, T-gate count, and total failure budget. It reports p05/p50/p95, mean, sample standard deviation, and rates for cap-exceeded, model-domain-valid, and feasible scenarios.
