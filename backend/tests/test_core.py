@@ -270,3 +270,53 @@ def test_scenario_bridge_propagates_resource_model_domain_flags():
     assert rsa["model_domain_valid"] is False
     assert rsa["distance_cap_exceeded"] is True
     assert rsa["feasible"] is False
+
+
+def test_monte_carlo_separates_cap_sentinels_from_valid_resource_quantiles(monkeypatch):
+    import qec.uncertainty as uncertainty
+
+    def capped_estimate(**kwargs):
+        return {
+            "total_physical": 7442,
+            "d": 61,
+            "distance_cap_exceeded": True,
+            "model_domain_valid": True,
+            "feasible": False,
+        }
+
+    monkeypatch.setattr(uncertainty, "estimate", capped_estimate)
+    report = uncertainty.monte_carlo_resource_scenarios(
+        samples=3,
+        seed=11,
+        p_min=0.001,
+        p_max=0.002,
+        n_logical_min=100,
+        n_logical_max=100,
+        t_gates_min=1000,
+        t_gates_max=1000,
+        p_total_failure_min=0.5,
+        p_total_failure_max=0.5,
+    )
+    assert report["schema_version"] == "1.1"
+    assert report["results"]["full_distribution_includes_distance_cap_reference_values"] is True
+    assert report["results_within_search_cap"]["sample_count"] == 0
+    assert report["results_within_search_cap"]["total_physical"] is None
+    assert report["results_within_search_cap"]["reported_distance"] is None
+    assert report["rates"]["distance_cap_exceeded"] == 1.0
+
+
+def test_resource_cap_uses_supported_distance_for_reference_counts():
+    result = estimate(p_physical=0.05, n_logical=100, t_gates=1_000_000)
+
+    assert result["d"] == 61  # compatibility sentinel, not a physical distance
+    assert result["modeled_distance"] == 59
+    assert result["distance_limit_reached"] is True
+    assert result["phys_per_logical"] == 2 * 59 * 59
+    assert result["total_physical"] == 100 * 2 * 59 * 59
+    assert result["feasible"] is False
+    assert "cap-reference" in result["feasibility_note"]
+
+
+def test_min_distance_rejects_unit_failure_target():
+    with pytest.raises(ValueError):
+        min_distance(0.001, 1.0)
