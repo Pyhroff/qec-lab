@@ -15,6 +15,11 @@ from qec import register
         ({"n": 1, "m": 1, "d": 3, "p": 1.1}, "p must be a finite probability"),
         ({"n": 1, "m": 1, "d": 3, "p": float("nan")}, "p must be a finite probability"),
         ({"n": 1, "m": 1, "d": 3, "p": 0.0, "seed": "7"}, "seed must be an integer"),
+        ({"n": True, "m": 1, "d": 3, "p": 0.0}, "n must be a positive integer"),
+        ({"n": 1, "m": False, "d": 3, "p": 0.0}, "m must be a positive integer"),
+        ({"n": 1, "m": 1, "d": True, "p": 0.0}, "d must be an odd integer"),
+        ({"n": 1, "m": 1, "d": 3, "p": True}, "p must be a finite probability"),
+        ({"n": 1, "m": 1, "d": 3, "p": 0.0, "seed": True}, "seed must be an integer"),
     ],
 )
 def test_run_register_rejects_invalid_inputs(kwargs, message):
