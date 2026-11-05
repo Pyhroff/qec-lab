@@ -1,4 +1,8 @@
-# Quantum OS
+# qec-lab
+
+[![CI](https://github.com/Pyhroff/qec-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/Pyhroff/qec-lab/actions/workflows/ci.yml)
+
+*Quantum OS: a rotated surface-code QEC simulator with a web front end.*
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
